@@ -508,7 +508,7 @@ ppo_agent.py
 
 
 SceneImitate.cpp
-``` python
+``` C++
 double cSceneImitate::CalcRewardImitate(const cSimCharacter& sim_char, const cKinCharacter& kin_char) const
 {
 	double pose_w = 0.5;
