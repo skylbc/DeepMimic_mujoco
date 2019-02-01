@@ -1,8 +1,8 @@
 # Convert to python
-worklfow overview
-* create bullet env
-* create characters
-* define reward function
+During Chinese New Year: 
+* create character xml for Mujoco
+* define rewards 
+* connect the Mujoco env with the PPO learning method
 
 # Structure
 ``` bash
