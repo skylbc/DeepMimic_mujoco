@@ -1,3 +1,9 @@
+# Convert to python
+worklfow overview
+* create bullet env
+* create characters
+* define reward function
+
 # Structure
 ``` bash
 ├── args
