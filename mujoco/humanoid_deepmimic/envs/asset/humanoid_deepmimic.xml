@@ -25,6 +25,7 @@
         <geom condim="3" friction="1 .1 .1" material="MatPlane" name="floor" pos="0 0 0" rgba="0.8 0.9 0.8 1" size="20 20 0.125" type="plane"/>
         <!-- <geom condim="3" material="MatPlane" name="floor" pos="0 0 0" size="10 10 0.125" type="plane"/>-->
         <body name="root" pos="0 0 1">
+            <camera name="track" mode="trackcom" pos="0 -4 1" xyaxes="1 0 0 0 0 1"/>
             <geom name="root" pos="0 0 0.07" size=".09" type="sphere"/>
             <joint armature="0" damping="0" limited="false" name="root" pos="0 0 0" stiffness="0" type="free"/>
             <body name="joint_waist" pos="0 0 0.205">
@@ -57,7 +58,7 @@
                     </body>
                     <body name="right_elbow" pos="0 0 -0.274788">
                         <geom fromto="0 0 -0.0525 0 0 -0.1875" name="right_elbow" size="0.04" type="capsule"/>
-                        <joint armature="0" damping="0" limited="true" axis="0 1 0" name="right_elbow" pos="0 0 0" range="-180 0" stiffness="0" type="hinge"/>
+                        <joint armature="0" damping="0" limited="true" axis="0 1 0" name="right_elbow" pos="0 0 0" range="-150 0" stiffness="0" type="hinge"/>
                         <body name="joint_right_elbow" pos="0 0 0">
                             <geom name="joint_right_elbow" pos="0 0 0" size="0.03" type="sphere"/>
                         </body>
@@ -79,7 +80,7 @@
                     </body>
                     <body name="left_elbow" pos="0 0 -0.274788">
                         <geom fromto="0 0 -0.0525 0 0 -0.1875" name="left_elbow" size="0.04" type="capsule"/>
-                        <joint armature="0" damping="0" limited="true" axis="0 1 0" name="left_elbow" pos="0 0 0" range="-180 0" stiffness="0" type="hinge"/>
+                        <joint armature="0" damping="0" limited="true" axis="0 1 0" name="left_elbow" pos="0 0 0" range="-150 0" stiffness="0" type="hinge"/>
                         <body name="joint_left_elbow" pos="0 0 0">
                             <geom name="joint_left_elbow" pos="0 0 0" size="0.03" type="sphere"/>
                         </body>
@@ -99,7 +100,7 @@
                 </body>
                 <body name="right_knee" pos="0 0 -0.421546">
                     <geom fromto="0 0 -0.045 0 0 -0.355" name="right_knee" size="0.05" type="capsule"/>
-                    <joint armature="0" damping="0" limited="true" axis="0 1 0" name="right_knee" pos="0 0 0" range="0 180" stiffness="0" type="hinge"/>
+                    <joint armature="0" damping="0" limited="true" axis="0 1 0" name="right_knee" pos="0 0 0" range="0 150" stiffness="0" type="hinge"/>
                     <body name="joint_right_knee" pos="0 0 0">
                         <geom name="joint_right_knee" pos="0 0 0" size="0.035" type="sphere"/>
                     </body>
@@ -107,7 +108,7 @@
                         <body name="joint_right_ankle" pos="0 0 0">
                             <geom name="joint_right_ankle" pos="0 0 0" size="0.04" type="sphere"/>
                         </body>
-                        <geom name="right_ankle" pos="0.045 0 -0.0225" size="0.088 0.027 0.045" type="box"/>
+                        <geom name="right_ankle" pos="0.045 0 -0.0225" size="0.088 0.045 0.027" type="box"/>
                         <joint armature="0.02" axis="1 0 0" damping="5" name="right_ankle_x" pos="0 0 0" range="-57.3 57.3" stiffness="10" type="hinge"/>
                         <joint armature="0.02" axis="0 1 0" damping="5" name="right_ankle_y" pos="0 0 0" range="-57.3 57.3" stiffness="10" type="hinge"/>
                         <joint armature="0.02" axis="0 0 1" damping="5" name="right_ankle_z" pos="0 0 0" range="-90 90" stiffness="20" type="hinge"/>
@@ -124,12 +125,12 @@
                 </body>
                 <body name="left_knee" pos="0 0 -0.421546">
                     <geom fromto="0 0 -0.045 0 0 -0.355" name="left_knee" size="0.05" type="capsule"/>
-                    <joint armature="0" damping="0" limited="true" axis="0 1 0" name="left_knee" pos="0 0 0" range="0 180" stiffness="0" type="hinge"/>
+                    <joint armature="0" damping="0" limited="true" axis="0 1 0" name="left_knee" pos="0 0 0" range="0 150" stiffness="0" type="hinge"/>
                     <body name="joint_left_knee" pos="0 0 0">
                         <geom name="joint_left_knee" pos="0 0 0" size="0.035" type="sphere"/>
                     </body>
                     <body name="left_ankle" pos="0 0 -0.40987">
-                        <geom name="left_ankle" pos="0.045 0 -0.0225" size="0.088 0.027 0.045" type="box"/>
+                        <geom name="left_ankle" pos="0.045 0 -0.0225" size="0.088 0.045 0.027" type="box"/>
                         <joint armature="0.02" axis="1 0 0" damping="5" name="left_ankle_x" pos="0 0 0" range="-57.3 57.3" stiffness="10" type="hinge"/>
                         <joint armature="0.02" axis="0 1 0" damping="5" name="left_ankle_y" pos="0 0 0" range="-57.3 57.3" stiffness="10" type="hinge"/>
                         <joint armature="0.02" axis="0 0 1" damping="5" name="left_ankle_z" pos="0 0 0" range="-90 90" stiffness="20" type="hinge"/>
@@ -231,7 +232,7 @@
         <motor gear="25" joint="right_shoulder_x" name="right_shoulder_x"/>
         <motor gear="25" joint="right_shoulder_y" name="right_shoulder_y"/>
         <motor gear="25" joint="right_shoulder_z" name="right_shoulder_z"/>
-25
+
         <motor gear="25" joint="right_elbow" name="right_elbow"/>
 
         <motor gear="25" joint="left_shoulder_x" name="left_shoulder_x"/>

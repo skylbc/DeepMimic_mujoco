@@ -45,5 +45,8 @@ class HumanoidDeepMimicEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.viewer.cam.distance = self.model.stat.extent * 0.5
 
 if __name__ == "__main__":
-    test = HumanoidDeepMimicEnv()
-    test.step(None)
+    env = HumanoidDeepMimicEnv()
+    while True:
+        act = 4 * (np.random.rand(env.action_space.shape[0]) - 0.5)
+        env.step(act)
+        env.render()
