@@ -4,7 +4,7 @@ from gym.envs.mujoco import mujoco_env
 
 class HumanoidDeepMimicEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def __init__(self):
-        mujoco_env.MujocoEnv.__init__(self, '/home/mingfei/Documents/DeepMimic/mujoco/humanoid_deepmimic.xml', 5)
+        mujoco_env.MujocoEnv.__init__(self, '/home/mingfei/Documents/DeepMimic/mujoco/humanoid_deepmimic/envs/asset/humanoid_deepmimic.xml', 5)
         utils.EzPickle.__init__(self)
 
     def step(self, a):
