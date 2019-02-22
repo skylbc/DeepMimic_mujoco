@@ -415,8 +415,8 @@ class RLAgent(ABC):
         return MPIUtil.is_root_proc() and self.int_output_dir != ""
     
     def _calc_val_bounds(self, discount):
-        r_min = self.world.env.get_reward_min(self.id)
-        r_max = self.world.env.get_reward_max(self.id)
+        r_min = 0
+        r_max = 1
         assert(r_min <= r_max)
 
         val_min = r_min / ( 1.0 - discount)
@@ -435,11 +435,11 @@ class RLAgent(ABC):
         return val_offset, val_scale
 
     def _calc_term_vals(self, discount):
-        r_fail = self.world.env.get_reward_fail(self.id)
-        r_succ = self.world.env.get_reward_succ(self.id)
+        r_fail = 0
+        r_succ = 1
 
-        r_min = self.world.env.get_reward_min(self.id)
-        r_max = self.world.env.get_reward_max(self.id)
+        r_min = 0 
+        r_max = 1
         assert(r_fail <= r_max and r_fail >= r_min)
         assert(r_succ <= r_max and r_succ >= r_min)
         assert(not np.isinf(r_fail))
@@ -473,7 +473,7 @@ class RLAgent(ABC):
         return
 
     def _enable_draw(self):
-        return self.world.env.enable_draw
+        return True
 
     def _log_val(self, s, g):
         pass

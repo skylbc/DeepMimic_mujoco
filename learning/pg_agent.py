@@ -46,7 +46,7 @@ class PGAgent(TFAgent):
 
     def _check_action_space(self):
         action_space = self.get_action_space()
-        return action_space == ActionSpace.Continuous
+        return action_space == 1
 
     def _load_params(self, json_data):
         super()._load_params(json_data)

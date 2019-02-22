@@ -6,7 +6,7 @@ from OpenGL.GL import *
 from OpenGL.GLUT import *
 from OpenGL.GLU import *
 
-from env.deepmimic_env import DeepMimicEnv
+from env.deepmimic_env_mujoco import DeepMimicEnv
 from learning.rl_world import RLWorld
 from util.arg_parser import ArgParser
 from util.logger import Logger
@@ -52,13 +52,6 @@ def build_arg_parser(args):
     return arg_parser
 
 
-def update_intermediate_buffer():
-    if not (reshaping):
-        if (win_width != world.env.get_win_width() or win_height != world.env.get_win_height()):
-            world.env.reshape(win_width, win_height)
-
-    return
-
 def update_world(world, time_elapsed):
     num_substeps = world.env.get_num_update_substeps()
     timestep = time_elapsed / num_substeps
@@ -81,10 +74,7 @@ def update_world(world, time_elapsed):
 
 def draw():
     global reshaping
-
-    update_intermediate_buffer()
     world.env.draw()
-    
     glutSwapBuffers()
     reshaping = False
 
@@ -225,92 +215,21 @@ def toggle_training():
         Logger.print('Training disabled')
     return
 
-def keyboard(key, x, y):
-    key_val = int.from_bytes(key, byteorder='big')
-    world.env.keyboard(key_val, x, y)
-
-    if (key == b'\x1b'): # escape
-        shutdown()
-    elif (key == b' '):
-        toggle_animate();
-    elif (key == b'>'):
-        step_anim(update_timestep);
-    elif (key == b'<'):
-        step_anim(-update_timestep);
-    elif (key == b','):
-        change_playback_speed(-playback_delta);
-    elif (key == b'.'):
-        change_playback_speed(playback_delta);
-    elif (key == b'/'):
-        change_playback_speed(-playback_speed + 1);
-    elif (key == b'l'):
-        reload();
-    elif (key == b'r'):
-        reset();
-    elif (key == b't'):
-        toggle_training()
-
-    glutPostRedisplay()
-    return
-
-def mouse_click(button, state, x, y):
-    world.env.mouse_click(button, state, x, y)
-    glutPostRedisplay()
-
-def mouse_move(x, y):
-    world.env.mouse_move(x, y)
-    glutPostRedisplay()
-    
-    return
-
-def init_draw():
-    glutInit()  
-    
-    # glutInitContextVersion(3, 2)
-    glutInitContextFlags(GLUT_FORWARD_COMPATIBLE)
-    glutInitContextProfile(GLUT_CORE_PROFILE)
-
-    glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH)
-    glutInitWindowSize(win_width, win_height)
-    glutCreateWindow(b'DeepMimic')
-    return
-    
-def setup_draw():
-    glutDisplayFunc(draw)
-    glutReshapeFunc(reshape)
-    glutKeyboardFunc(keyboard)
-    glutMouseFunc(mouse_click)
-    glutMotionFunc(mouse_move)
-    glutTimerFunc(display_anim_time, animate, 0)
-
-    reshape(win_width, win_height)
-    world.env.reshape(win_width, win_height)
-    
-    return
-
 def build_world(args, enable_draw, playback_speed=1):
     arg_parser = build_arg_parser(args)
-    env = DeepMimicEnv(args, enable_draw)
+    env = DeepMimicEnv()
     world = RLWorld(env, arg_parser)
-    world.env.set_playback_speed(playback_speed)
     return world
 
 def draw_main_loop():
     init_time()
-    glutMainLoop()
     return
 
 def main():
     global args
 
-    # Command line arguments
     args = sys.argv[1:]
-
-    init_draw()
     reload()
-    setup_draw()
-    draw_main_loop()
-
     return
 
 if __name__ == '__main__':
