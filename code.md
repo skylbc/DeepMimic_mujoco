@@ -1,8 +1,208 @@
 # Convert to python
 During Chinese New Year: 
-* create character xml for Mujoco
+* ~~create character xml for Mujoco~~
 * define rewards 
 * connect the Mujoco env with the PPO learning method
+
+# State and action definition
+**State** 197 = 106 (pos) + 90 (vel) + 1 (phase):
+* Size
+``` C++
+int cCtController::GetStatePoseSize() const
+{
+	int pos_dim = GetPosFeatureDim();
+	int rot_dim = GetRotFeatureDim();
+	int size = mChar->GetNumBodyParts() * (pos_dim + rot_dim) + 1; // +1 for root y
+
+	return size;
+}
+
+int cCtController::GetStateVelSize() const
+{
+	int pos_dim = GetPosFeatureDim();
+	int rot_dim = GetRotFeatureDim();
+	int size = mChar->GetNumBodyParts() * (pos_dim + rot_dim - 1);
+	return size;
+}
+```
+* Contents
+``` C++
+void cCtController::BuildStatePose(Eigen::VectorXd& out_pose) const
+{
+	tMatrix origin_trans = mChar->BuildOriginTrans();
+	tQuaternion origin_quat = cMathUtil::RotMatToQuaternion(origin_trans);
+
+	bool flip_stance = FlipStance();
+	if (flip_stance)
+	{
+		origin_trans.row(2) *= -1; // reflect z
+	}
+
+	tVector root_pos = mChar->GetRootPos();
+	tVector root_pos_rel = root_pos;
+
+	root_pos_rel[3] = 1;
+	root_pos_rel = origin_trans * root_pos_rel;
+	root_pos_rel[3] = 0;
+
+	out_pose = Eigen::VectorXd::Zero(GetStatePoseSize());
+	out_pose[0] = root_pos_rel[1];
+	int num_parts = mChar->GetNumBodyParts();
+	int root_id = mChar->GetRootID();
+
+	int pos_dim = GetPosFeatureDim();
+	int rot_dim = GetRotFeatureDim();
+
+	tQuaternion mirror_inv_origin_quat = origin_quat.conjugate();
+	mirror_inv_origin_quat = cMathUtil::MirrorQuaternion(mirror_inv_origin_quat, cMathUtil::eAxisZ);
+
+	int idx = 1;
+	for (int i = 0; i < num_parts; ++i)
+	{
+		int part_id = RetargetJointID(i);
+		if (mChar->IsValidBodyPart(part_id))
+		{
+			const auto& curr_part = mChar->GetBodyPart(part_id);
+			tVector curr_pos = curr_part->GetPos();
+
+			if (mRecordWorldRootPos && i == root_id)
+			{
+				if (flip_stance)
+				{
+					curr_pos = cMathUtil::QuatRotVec(origin_quat, curr_pos);
+					curr_pos[2] = -curr_pos[2];
+					curr_pos = cMathUtil::QuatRotVec(mirror_inv_origin_quat, curr_pos);
+				}
+			}
+			else
+			{
+				curr_pos[3] = 1;
+				curr_pos = origin_trans * curr_pos;
+				curr_pos -= root_pos_rel;
+				curr_pos[3] = 0;
+			}
+
+			out_pose.segment(idx, pos_dim) = curr_pos.segment(0, pos_dim);
+			idx += pos_dim;
+
+			tQuaternion curr_quat = curr_part->GetRotation();
+			if (mRecordWorldRootRot && i == root_id)
+			{
+				if (flip_stance)
+				{
+					curr_quat = origin_quat * curr_quat;
+					curr_quat = cMathUtil::MirrorQuaternion(curr_quat, cMathUtil::eAxisZ);
+					curr_quat = mirror_inv_origin_quat * curr_quat;
+				}
+			}
+			else
+			{
+				curr_quat = origin_quat * curr_quat;
+				if (flip_stance)
+				{
+					curr_quat = cMathUtil::MirrorQuaternion(curr_quat, cMathUtil::eAxisZ);
+				}
+			}
+
+			if (curr_quat.w() < 0)
+			{
+				curr_quat.w() *= -1;
+				curr_quat.x() *= -1;
+				curr_quat.y() *= -1;
+				curr_quat.z() *= -1;
+			}
+			out_pose.segment(idx, rot_dim) = cMathUtil::QuatToVec(curr_quat).segment(0, rot_dim);
+			idx += rot_dim;
+		}
+	}
+}
+
+void cCtController::BuildStateVel(Eigen::VectorXd& out_vel) const
+{
+	int num_parts = mChar->GetNumBodyParts();
+	tMatrix origin_trans = mChar->BuildOriginTrans();
+	tQuaternion origin_quat = cMathUtil::RotMatToQuaternion(origin_trans);
+
+	bool flip_stance = FlipStance();
+	if (flip_stance)
+	{
+		origin_trans.row(2) *= -1; // reflect z
+	}
+
+	int pos_dim = GetPosFeatureDim();
+	int rot_dim = GetRotFeatureDim();
+
+	out_vel = Eigen::VectorXd::Zero(GetStateVelSize());
+
+	tQuaternion mirror_inv_origin_quat = origin_quat.conjugate();
+	mirror_inv_origin_quat = cMathUtil::MirrorQuaternion(mirror_inv_origin_quat, cMathUtil::eAxisZ);
+	
+	int idx = 0;
+	for (int i = 0; i < num_parts; ++i)
+	{
+		int part_id = RetargetJointID(i);
+		int root_id = mChar->GetRootID();
+
+		const auto& curr_part = mChar->GetBodyPart(part_id);
+		tVector curr_vel = curr_part->GetLinearVelocity();
+
+		if (mRecordWorldRootRot && i == root_id)
+		{
+			if (flip_stance)
+			{
+				curr_vel = cMathUtil::QuatRotVec(origin_quat, curr_vel);
+				curr_vel[2] = -curr_vel[2];
+				curr_vel = cMathUtil::QuatRotVec(mirror_inv_origin_quat, curr_vel);
+			}
+		}
+		else
+		{
+			curr_vel = origin_trans * curr_vel;
+		}
+
+		out_vel.segment(idx, pos_dim) = curr_vel.segment(0, pos_dim);
+		idx += pos_dim;
+
+		tVector curr_ang_vel = curr_part->GetAngularVelocity();
+		if (mRecordWorldRootRot && i == root_id)
+		{
+			if (flip_stance)
+			{
+				curr_ang_vel = cMathUtil::QuatRotVec(origin_quat, curr_ang_vel);
+				curr_ang_vel[2] = -curr_ang_vel[2];
+				curr_ang_vel = -curr_ang_vel;
+				curr_ang_vel = cMathUtil::QuatRotVec(mirror_inv_origin_quat, curr_ang_vel);
+			}
+		}
+		else
+		{
+			curr_ang_vel = origin_trans * curr_ang_vel;
+			if (flip_stance)
+			{
+				curr_ang_vel = -curr_ang_vel;
+			}
+		}
+
+		out_vel.segment(idx, rot_dim - 1) = curr_ang_vel.segment(0, rot_dim - 1);
+		idx += rot_dim - 1;
+	}
+}
+```
+
+**Action** 36 = 4 * 8 (spherical joint) + 4 (revolute joint):
+``` C++
+int cCtController::GetActionPhaseSize() const
+{
+	return (mEnablePhaseAction) ? 1 : 0;
+}
+int cCtController::GetActionCtrlSize() const
+{
+	int ctrl_size = mChar->GetNumDof();
+	int root_size = mChar->GetParamSize(mChar->GetRootID());
+	ctrl_size -= root_size;
+	return ctrl_size;
+}
+```
 
 # Structure
 ``` bash
