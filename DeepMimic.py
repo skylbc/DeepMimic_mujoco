@@ -73,32 +73,7 @@ def update_world(world, time_elapsed):
     return
 
 def draw():
-    global reshaping
     world.env.draw()
-    glutSwapBuffers()
-    reshaping = False
-
-    return
-
-def reshape(w, h):
-    global reshaping
-    global win_width
-    global win_height
-
-    reshaping = True
-    win_width = w
-    win_height = h
-
-    return
-
-def step_anim(timestep):
-    global animating
-    global world
-
-    update_world(world, timestep)
-    animating = False
-    glutPostRedisplay()
-    return
 
 def reload():
     global world
@@ -111,24 +86,6 @@ def reset():
     world.reset()
     return
 
-def get_num_timesteps():
-    global playback_speed
-
-    num_steps = int(playback_speed)
-    if (num_steps == 0):
-        num_steps = 1
-
-    num_steps = np.abs(num_steps)
-    return num_steps
-
-def calc_display_anim_time(num_timestes):
-    global display_anim_time
-    global playback_speed
-
-    anim_time = int(display_anim_time * num_timestes / playback_speed)
-    anim_time = np.abs(anim_time)
-    return anim_time
-
 def shutdown():
     global world
 
@@ -137,82 +94,15 @@ def shutdown():
     sys.exit(0)
     return
 
-def get_curr_time():
-    curr_time = glutGet(GLUT_ELAPSED_TIME)
-    return curr_time
-
-def init_time():
-    global prev_time
-    global updates_per_sec
-    prev_time = get_curr_time()
-    updates_per_sec = 0
-    return
-
-def animate(callback_val):
-    global prev_time
-    global updates_per_sec
+def animate():
     global world
 
-    counter_decay = 0
-
-    if (animating):
-        num_steps = get_num_timesteps()
-        curr_time = get_curr_time()
-        time_elapsed = curr_time - prev_time
-        prev_time = curr_time;
-
-        timestep = -update_timestep if (playback_speed < 0) else update_timestep
-        for i in range(num_steps):
-            update_world(world, timestep)
-        
-        # FPS counting
-        update_count = num_steps / (0.001 * time_elapsed)
-        if (np.isfinite(update_count)):
-            updates_per_sec = counter_decay * updates_per_sec + (1 - counter_decay) * update_count;
-            world.env.set_updates_per_sec(updates_per_sec);
+    timestep = -update_timestep if (playback_speed < 0) else update_timestep
+    update_world(world, timestep)
             
-        timer_step = calc_display_anim_time(num_steps)
-        update_dur = get_curr_time() - curr_time
-        timer_step -= update_dur
-        timer_step = np.maximum(timer_step, 0)
-        
-        glutTimerFunc(int(timer_step), animate, 0)
-        glutPostRedisplay()
-
     if (world.env.is_done()):
         shutdown()
 
-    return
-
-def toggle_animate():
-    global animating
-
-    animating = not animating
-    if (animating):
-        glutTimerFunc(display_anim_time, animate, 0)
-
-    return
-
-def change_playback_speed(delta):
-    global playback_speed
-
-    prev_playback = playback_speed
-    playback_speed += delta
-    world.env.set_playback_speed(playback_speed)
-
-    if (np.abs(prev_playback) < 0.0001 and np.abs(playback_speed) > 0.0001):
-        glutTimerFunc(display_anim_time, animate, 0)
-
-    return
-
-def toggle_training():
-    global world
-
-    world.enable_training = not world.enable_training
-    if (world.enable_training):
-        Logger.print('Training enabled')
-    else:
-        Logger.print('Training disabled')
     return
 
 def build_world(args, enable_draw, playback_speed=1):
@@ -221,15 +111,13 @@ def build_world(args, enable_draw, playback_speed=1):
     world = RLWorld(env, arg_parser)
     return world
 
-def draw_main_loop():
-    init_time()
-    return
-
 def main():
     global args
 
-    args = sys.argv[1:]
+    args = ["--arg_file", "args/kin_char_args.txt"]
     reload()
+    while True:
+        animate()
     return
 
 if __name__ == '__main__':

@@ -267,7 +267,8 @@ class ReplayBuffer(object):
                 assert val_len == n or val_len == n + 1
                 data[idx[:val_len]] = val
 
-        self.buffers[self.TERMINATE_KEY][idx] = path.terminate.value
+        # self.buffers[self.TERMINATE_KEY][idx] = path.terminate.value
+        self.buffers[self.TERMINATE_KEY][idx] = path.terminate
         self.buffers[self.PATH_START_KEY][idx] = idx[0]
         self.buffers[self.PATH_END_KEY][idx] = idx[-1]
         return

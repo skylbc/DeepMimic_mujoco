@@ -97,11 +97,12 @@ class RLWorld(object):
         return
 
     def end_episode(self):
-        self._end_episode_agents();
+        self._end_episode_agents()
         return
 
     def _update_env(self, timestep):
         self.env.update(timestep)
+        self.env.draw()
         return
 
     def _update_agents(self, timestep):

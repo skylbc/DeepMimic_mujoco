@@ -168,7 +168,8 @@ class RLAgent(ABC):
     enable_training = property(get_enable_training, set_enable_training)
 
     def enable_testing(self):
-        return self.test_episodes > 0
+        return False
+        # return self.test_episodes > 0
     
     def get_name(self):
         return self.NAME

@@ -2,79 +2,18 @@ import numpy as np
 
 from gym import utils
 from gym.envs.mujoco import mujoco_env
+from env.humanoid3d_env import Humanoid3DEnv
 
 class DeepMimicEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def __init__(self):
-        self.num_joint = np.nan
-        self.pos_dim = 3
-        self.rot_dim = 4
-
-        mujoco_env.MujocoEnv.__init__(self, '/home/mingfei/Documents/DeepMimic/mujoco/humanoid_deepmimic/envs/asset/humanoid_deepmimic.xml', 5)
-        utils.EzPickle.__init__(self)
-
-        rand_seed = np.random.randint(np.iinfo(np.int32).max)
-        self.seed(rand_seed)
-
-    def _get_joint_index(self):
-        all_joint_names = ["worldbody", "root", "joint_waist", "chest", "neck", 
-                           "joint_neck", "right_clavicle", "right_shoulder", "joint_right_shoulder", "right_elbow", 
-                           "joint_right_elbow", "right_wrist", "left_clavicle", "left_shoulder", "joint_left_shoulder", 
-                           "left_elbow", "joint_left_elbow", "left_wrist", "right_hip", "joint_right_hip", 
-                           "right_knee", "joint_right_knee", "right_ankle", "joint_right_ankle", "left_hip", 
-                           "joint_left_hip", "left_knee", "joint_left_knee", "left_ankle", "joint_left_ankle"]
-
-        valid_joint_names = ["root", "chest", "neck", "right_shoulder", "right_elbow",
-                             "right_wrist", "left_shoulder", "left_elbow", "left_wrist", "right_hip",
-                             "right_knee", "right_ankle", "left_hip", "left_knee", "left_ankle"]
-
-        self.num_joint = len(valid_joint_names)
-
-        idx = [a in valid_joint_names for a in all_joint_names]
-        return idx
-
-    def _update_data(self):
-        self.data = self.sim.data
+        self.counter = 0
+        self.mujoco_env = Humanoid3DEnv()
 
     def record_state(self, id):
-        self._update_data()
-        # Cartesian position of body frame
-        xpos = self.data.body_xpos
-        xquat = self.data.body_xquat
-        cvel = self.data.cvel
-
-        idx = self._get_joint_index()
-
-        valid_xpos = xpos[idx]
-        valid_xquat = xquat[idx]
-        valid_cvel = cvel[idx]
-
-        root_xpos = valid_xpos[0]
-
-        total_length = 0
-        total_length += self.num_joint * (self.pos_dim + self.rot_dim) + 1
-        total_length += self.num_joint * (self.pos_dim + self.rot_dim - 1)
-
-        self.state_size = total_length
-
-        obs = np.zeros(total_length)
-        obs.fill(np.nan) # fill with nan to avoid any missing data
-        
-        obs[0] = root_xpos[1]
-        curr_idx = 1
-        for i in range(self.num_joint):
-            obs[curr_idx:curr_idx+3] = valid_xpos[i] - root_xpos
-            curr_idx += 3
-            obs[curr_idx:curr_idx+4] = valid_xquat[i]
-            curr_idx += 4
-
-        for i in range(self.num_joint):
-            obs[curr_idx:curr_idx+6] = valid_cvel[i]
-            curr_idx += 6
-        
-        return obs
+        return self.mujoco_env._get_obs()
 
     def calc_reward(self, agent_id):
-        return 1
+        return np.random.rand() - 0.5
         '''
         pose_w = 0.5
         vel_w = 0.05
@@ -203,41 +142,23 @@ class DeepMimicEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         return reward;
         '''
 
-    def step(self, a):
-        self.do_simulation(a, self.frame_skip)
-        reward = self.calc_reward(0)
-        done = False
-        info = dict(reward_linvel=0, 
-                    reward_quadctrl=0, 
-                    reward_alive=0, 
-                    reward_impact=0)
-        return self.record_state(0), reward, done, info
-
     def update(self, timestep):
-        fps = 60
-        update_timestep = 1.0 / fps
-        self.frame_skip = int(timestep/update_timestep)
-        # assert self.ac != None
-        self.step(self.ac)
-        self.render()
+        self.counter += 1
 
     def reset(self):
-        qpos = self.init_qpos + self.np_random.uniform(size=self.model.nq, low=-.1, high=.1)
-        qvel = self.init_qvel + self.np_random.randn(self.model.nv) * .1
-        self.set_state(qpos, qvel)
+        self.mujoco_env.reset_model()
 
     def get_time(self):
-        return self.data.time
+        return self.mujoco_env.get_time()
 
     def get_name(self):
         return 'test_mujoco'
 
-    # rendering and UI interface
     def draw(self):
-        self.render()
+        self.mujoco_env.render()
 
     def shutdown(self):
-        self.close()
+        self.mujoco_env.close()
 
     def is_done(self):
         return False
@@ -250,6 +171,9 @@ class DeepMimicEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         return True
 
     def get_num_agents(self):
+        # 0 for mocap mode
+        # return 0
+        # 1 for training mode
         return 1
 
     def need_new_action(self, agent_id):
@@ -257,23 +181,22 @@ class DeepMimicEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
     def record_goal(self, agent_id):
         return np.array([1])
-        # return np.array(self._core.RecordGoal(agent_id))
 
     def get_action_space(self, agent_id):
         return 1
-        # return ActionSpace(self._core.GetActionSpace(agent_id))
     
     def set_action(self, agent_id, action):
         self.ac = action
+        self.mujoco_env.step(self.ac)
     
     def get_state_size(self, agent_id):
-        return self.state_size
+        return self.mujoco_env.get_state_size()
 
     def get_goal_size(self, agent_id):
-        return 1
+        return self.mujoco_env.get_goal_size()
 
     def get_action_size(self, agent_id):
-        return 26
+        return self.mujoco_env.get_action_size()
 
     def get_num_actions(self, agent_id):
         return 0
@@ -311,6 +234,9 @@ class DeepMimicEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         return np.ones(1)
 
     def is_episode_end(self):
+        if self.counter >= 50000:
+            self.counter = 0
+            return True
         return False
 
     def check_terminate(self, agent_id):
@@ -328,6 +254,24 @@ class DeepMimicEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def set_mode(self, mode):
         pass
 
+    def load_mocap(self, file_name):
+        import json
+        import copy
+        with open(file_name) as fin:
+            data_json = json.load(fin)
+            self.frames_raw = data_json["Frames"]
+            self.frames = copy.deepcopy(self.frames_raw)
+            curr_time = 0
+            for idx in range(len(self.frames)):
+                duration = self.frames[idx][0]
+                self.frames[idx][0] = curr_time
+                curr_time += duration
+
 if __name__ == "__main__":
     env = DeepMimicEnv()
     env.record_state(0)
+    while True:
+        fps = 60
+        update_timestep = 5.0 / fps
+        env.update(update_timestep)
+        env.draw()
