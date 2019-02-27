@@ -78,7 +78,7 @@ class Humanoid3DEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
     def step(self, a):
         self.do_simulation(a, self.frame_skip)
-        reward = 0
+        reward = (np.random.rand() - 0.5) * 2
         done = False
         info = dict(reward_linvel=0, 
                     reward_quadctrl=0, 
