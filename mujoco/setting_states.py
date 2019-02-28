@@ -60,7 +60,7 @@ def read_velocities():
     motions = None
     velocities = None
 
-    with open('humanoid3d_backflip.txt') as fin:
+    with open('motions/humanoid3d_crawl.txt') as fin:
         data = json.load(fin)
         motions = np.array(data["Frames"])
         velocities = np.zeros_like(motions)
@@ -98,7 +98,7 @@ def read_positions():
 
     durations = []
 
-    with open('humanoid3d_backflip.txt') as fin:
+    with open('./motions/humanoid3d_walk.txt') as fin:
         data = json.load(fin)
         motions = np.array(data["Frames"])
         total_time = 0.0
