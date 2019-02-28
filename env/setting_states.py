@@ -10,6 +10,10 @@ BODY_JOINTS = ["chest", "neck", "right_shoulder", "right_elbow",
                "left_shoulder", "left_elbow", "right_hip", "right_knee", 
                "right_ankle", "left_hip", "left_knee", "left_ankle"]
 
+BODY_JOINTS_IN_DP_ORDER = ["chest", "neck", "right_hip", "right_knee",
+                           "right_ankle", "right_shoulder", "right_elbow", "left_hip", 
+                           "left_knee", "left_ankle", "left_shoulder", "left_elbow"]
+
 DOF_DEF = {"chest": 3, "neck": 3, "right_shoulder": 3, "right_elbow": 1, 
            "left_shoulder": 3, "left_elbow": 1, "right_hip": 3, "right_knee": 1, 
            "right_ankle": 3, "left_hip": 3, "left_knee": 1, "left_ankle": 3}
@@ -17,9 +21,6 @@ DOF_DEF = {"chest": 3, "neck": 3, "right_shoulder": 3, "right_elbow": 1,
 file_path = '/home/mingfei/Documents/DeepMimic/mujoco/humanoid_deepmimic/envs/asset/humanoid_deepmimic.xml'
 with open(file_path) as fin:
     MODEL_XML = fin.read()
-
-def print_box_xpos(sim):
-    print("box xpos:", sim.data.get_body_xpos("box"))
 
 model = load_model_from_xml(MODEL_XML)
 sim = MjSim(model)
@@ -77,9 +78,23 @@ def read_velocities():
             velocities[idx, 1 + offset_root_joint:] = calc_vel_from_frames(frame_0, frame_1, dt)
     return velocities
 
+def align_rotation(rot):
+    return rot
+
+    q_input = Quaternion(rot[0], rot[1], rot[2], rot[3])
+    q_align_right = Quaternion(matrix=np.array([[1.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]]))
+    q_align_left = Quaternion(matrix=np.array([[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]]))
+
+    # q_output = q_align_right * q_input * q_align_left
+    q_output = q_input * q_align_right
+
+    return q_output.elements
+
 def read_positions():
     motions = None
     all_states = []
+
+    durations = []
 
     with open('humanoid3d_backflip.txt') as fin:
         data = json.load(fin)
@@ -89,39 +104,58 @@ def read_positions():
             duration = each_frame[0]
             each_frame[0] = total_time
             total_time += duration
-
-        curr_idx = 0
-        offset_idx = 1 
+            durations.append(duration)
 
         for each_frame in motions:
+            curr_idx = 1
+            offset_idx = 8
             state = {}
-            curr_idx = offset_idx
-            for each_joint in BODY_JOINTS:
+            state['root'] = each_frame[curr_idx:offset_idx]
+            for each_joint in BODY_JOINTS_IN_DP_ORDER:
+                curr_idx = offset_idx
                 dof = DOF_DEF[each_joint]
                 if dof == 1:
                     offset_idx += 1
                     state[each_joint] = each_frame[curr_idx:offset_idx]
                 elif dof == 3:
                     offset_idx += 4
-                    state[each_joint] = each_frame[curr_idx:offset_idx]
+                    state[each_joint] = align_rotation(each_frame[curr_idx:offset_idx])
             all_states.append(state)
 
-    return all_states
+    return all_states, durations
 
-states = read_positions()
+states, durations = read_positions()
+
+from time import sleep
 
 while True:
-    for state in states:
+    for k in range(len(states)):
+        state = states[k]
+        dura = durations[k]
         sim_state = sim.get_state()
+
+        sim_state.qpos[:7] = state['root']
+        tmp = sim_state.qpos[1]
+        sim_state.qpos[1] = -sim_state.qpos[2]
+        sim_state.qpos[2] = tmp
+        sim_state.qpos[3:7] = align_rotation(sim_state.qpos[3:7])
 
         for each_joint in BODY_JOINTS:
             idx = sim.model.get_joint_qpos_addr(each_joint)
-            sim_state.qpos[idx] = states[each_joint]
+            tmp_val = state[each_joint]
+            if isinstance(idx, np.int32):
+                assert 1 == len(tmp_val)
+                sim_state.qpos[idx] = state[each_joint]
+            elif isinstance(idx, tuple):
+                assert idx[1] - idx[0] == len(tmp_val)
+                sim_state.qpos[idx[0]:idx[1]] = state[each_joint]
 
+        print(sim_state.qpos)
         sim.set_state(sim_state)
         sim.forward()
-        print("updated state to", state)
         viewer.render()
+
+        # sleep(dura)
 
     if os.getenv('TESTING') is not None:
         break
