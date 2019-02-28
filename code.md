@@ -4,7 +4,29 @@ During Chinese New Year:
 * define rewards 
 * connect the Mujoco env with the PPO learning method
 
+# Mujoco 
+At runtime the positions and orientations of all joints defined in the model are stored in the vector mjData.qpos, in the order in which the appear in the kinematic tree. The linear and angular velocities are stored in the vector mjData.qvel. These two vectors have different dimensionality when free or free or ball joints are used, because such joints represent rotations as unit quaternions.
+
 # State and action definition
+
+# qpos order:
+``` xml
+<joint name="chest" pos="0 0 0" range="0 68.75" type="ball"/>
+<joint name="neck" pos="0 0 0" range="0 57.3" type="ball"/>
+<joint name="right_shoulder" pos="0 0 0" range="0 57.3" type="ball"/>
+<joint axis="0 1 0" name="right_elbow" pos="0 0 0" range="-150 0" type="hinge"/>
+<joint name="left_shoulder" pos="0 0 0" range="0 57.3" type="ball"/>
+<joint axis="0 1 0" name="left_elbow" pos="0 0 0" range="-150 0" type="hinge"/>
+<joint name="right_hip" pos="0 0 0" range="0 57.3" type="ball"/>
+<joint axis="0 1 0" name="right_knee" pos="0 0 0" range="0 150" type="hinge"/>
+<joint name="right_ankle" pos="0 0 0" range="0 57.3" type="ball"/>
+<joint name="left_hip" pos="0 0 0" range="0 57.3" type="ball"/>
+<joint axis="0 1 0" name="left_knee" pos="0 0 0" range="0 150" type="hinge"/>
+<joint name="left_ankle" pos="0 0 0" range="0 57.3" type="ball"/>
+```
+
+* Action: (angle, axis_x, axis_y, axis_z) --> quaternion for control
+
 **State** 197 = 106 (pos) + 90 (vel) + 1 (phase):
 * Size
 ``` C++
