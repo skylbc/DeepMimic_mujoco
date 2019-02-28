@@ -7,9 +7,286 @@ During Chinese New Year:
 # Mujoco 
 At runtime the positions and orientations of all joints defined in the model are stored in the vector mjData.qpos, in the order in which the appear in the kinematic tree. The linear and angular velocities are stored in the vector mjData.qvel. These two vectors have different dimensionality when free or free or ball joints are used, because such joints represent rotations as unit quaternions.
 
+
+# Scene update procedure
+The inheritance relationship: SceneImitate <--- RLSceneSimChar <--- RLScene & SceneSimChar
+
+In SceneSimChar.cpp, input parameter: time_elapsed
+* PreUpdate()
+``` C++
+void cRLSceneSimChar::PreUpdate(double timestep)
+{
+    cSceneSimChar::PreUpdate(timestep);
+
+    for (int a = 0; a < GetNumAgents(); ++a)
+    {
+        const auto& ctrl = mAgentReg.GetAgent(a);
+        bool new_action = ctrl->NeedNewAction();
+        if (new_action)
+        {
+            NewActionUpdate(a);
+        }
+    }
+}
+void cSceneSimChar::PreUpdate(double timestep)
+{
+    ClearJointForces();
+}
+```
+
+* UpdateCharacters()
+``` C++
+void cSceneImitate::UpdateCharacters(double timestep)
+{
+    UpdateKinChar(timestep);
+    cRLSceneSimChar::UpdateCharacters(timestep);
+}
+void cSceneSimChar::UpdateCharacters(double time_step)
+{
+    int num_chars = GetNumChars();
+    for (int i = 0; i < num_chars; ++i)
+    {
+        const auto& curr_char = GetCharacter(i);
+        curr_char->Update(time_step);
+    }
+}
+```
+
+``` C++
+void cSimCharacter::Update(double timestep)
+{
+    ClearJointTorques();
+
+    if (HasController())
+    {
+        mController->Update(timestep);
+    }
+
+    // dont clear torques until next frame since they can be useful for visualization
+    UpdateJoints();
+}
+```
+
+DeepMimicCharController.cpp
+``` C++
+void cDeepMimicCharController::Update(double time_step)
+{
+    cCharController::Update(time_step);
+    UpdateCalcTau(time_step, mTau);
+    UpdateApplyTau(mTau);
+}
+```
+
+Controller inheritance relationship: CtPDController <--- CtController <--- cDeepMimicCharController <--- cCharController
+``` C++
+void cCtController::UpdateCalcTau(double timestep, Eigen::VectorXd& out_tau)
+{
+    // use unnormalized phase
+    double prev_phase = 0;
+    if (mEnablePhaseAction)
+    {
+        prev_phase = mTime / mCyclePeriod;
+        prev_phase += mPhaseOffset;
+    }
+
+    cDeepMimicCharController::UpdateCalcTau(timestep, out_tau);
+
+    if (mEnablePhaseAction)
+    {
+        double phase_rate = GetPhaseRate();
+        double tar_phase = prev_phase + timestep * phase_rate;
+        mPhaseOffset = tar_phase - mTime / mCyclePeriod;
+        mPhaseOffset = std::fmod(mPhaseOffset, 1.0);
+    }
+
+    UpdateBuildTau(timestep, out_tau);
+}
+```
+
+``` C++
+void cCtPDController::UpdateBuildTau(double time_step, Eigen::VectorXd& out_tau)
+{
+	UpdatePDCtrls(time_step, out_tau);
+}
+
+void cCtPDController::UpdatePDCtrls(double time_step, Eigen::VectorXd& out_tau)
+{
+	int num_dof = mChar->GetNumDof();
+	out_tau = Eigen::VectorXd::Zero(num_dof);
+	mPDCtrl.UpdateControlForce(time_step, out_tau);
+}
+```
+
+``` C++
+void cImpPDController::CalcControlForces(double time_step, Eigen::VectorXd& out_tau)
+{
+	double t = time_step;
+
+	const Eigen::VectorXd& pose = mChar->GetPose();
+	const Eigen::VectorXd& vel = mChar->GetVel();
+	Eigen::VectorXd tar_pose;
+	Eigen::VectorXd tar_vel;
+	BuildTargetPose(tar_pose);
+	BuildTargetVel(tar_vel);
+
+	Eigen::DiagonalMatrix<double, Eigen::Dynamic> Kp_mat = mKp.asDiagonal();
+	Eigen::DiagonalMatrix<double, Eigen::Dynamic> Kd_mat = mKd.asDiagonal();
+
+	for (int j = 0; j < GetNumJoints(); ++j)
+	{
+		const cPDController& pd_ctrl = GetPDCtrl(j);
+		if (!pd_ctrl.IsValid() || !pd_ctrl.IsActive())
+		{
+			int param_offset = mChar->GetParamOffset(j);
+			int param_size = mChar->GetParamSize(j);
+			Kp_mat.diagonal().segment(param_offset, param_size).setZero();
+			Kd_mat.diagonal().segment(param_offset, param_size).setZero();
+		}
+	}
+
+	Eigen::MatrixXd M = mRBDModel->GetMassMat();
+	const Eigen::VectorXd& C = mRBDModel->GetBiasForce();
+	M.diagonal() += t * mKd;
+
+	Eigen::VectorXd pose_inc;
+	const Eigen::MatrixXd& joint_mat = mChar->GetJointMat();
+	cKinTree::VelToPoseDiff(joint_mat, pose, vel, pose_inc);
+
+	pose_inc = pose + t * pose_inc;
+	cKinTree::PostProcessPose(joint_mat, pose_inc);
+
+	Eigen::VectorXd pose_err;
+	cKinTree::CalcVel(joint_mat, pose_inc, tar_pose, 1, pose_err);
+	Eigen::VectorXd vel_err = tar_vel - vel;
+	Eigen::VectorXd acc = Kp_mat * pose_err + Kd_mat * vel_err - C;
+	
+#if defined(IMP_PD_CTRL_PROFILER)
+	TIMER_RECORD_BEG(Solve)
+#endif
+
+	//int root_size = cKinTree::gRootDim;
+	//int num_act_dofs = static_cast<int>(acc.size()) - root_size;
+	//auto M_act = M.block(root_size, root_size, num_act_dofs, num_act_dofs);
+	//auto acc_act = acc.segment(root_size, num_act_dofs);
+	//acc_act = M_act.ldlt().solve(acc_act);
+	
+	acc = M.ldlt().solve(acc);
+
+#if defined(IMP_PD_CTRL_PROFILER)
+	TIMER_RECORD_END(Solve, mPerfSolveTime, mPerfSolveCount)
+#endif
+	
+	out_tau += Kp_mat * pose_err + Kd_mat * (vel_err - t * acc);
+}
+```
+``` C++ 
+void cDeepMimicCharController::UpdateCalcTau(double timestep, Eigen::VectorXd& out_tau)
+{
+    mTime += timestep;
+    if (mNeedNewAction)
+    {
+        HandleNewAction();
+    }
+}
+```
+
+
+SimCharacter.cpp 
+``` C++
+void cSimCharacter::ApplyControlForces(const Eigen::VectorXd& tau)
+{
+    assert(tau.size() == GetNumDof());
+    for (int j = 1; j < GetNumJoints(); ++j)
+    {
+        cSimBodyJoint& joint = GetJoint(j);
+        if (joint.IsValid())
+        {
+            int param_offset = GetParamOffset(j);
+            int param_size = GetParamSize(j);
+            if (param_size > 0)
+            {
+                Eigen::VectorXd curr_tau = tau.segment(param_offset, param_size);
+                joint.AddTau(curr_tau);
+            }
+        }
+    }
+}
+```
+
+* UpdateWorld()
+``` C++
+void cSceneSimChar::UpdateWorld(double time_step)
+{
+    mWorld->Update(time_step);
+}
+```
+
+* UpdateGround()
+``` C++
+void cSceneSimChar::UpdateGround(double time_elapsed)
+{
+    tVector view_min;
+    tVector view_max;
+    GetViewBound(view_min, view_max);
+    mGround->Update(time_elapsed, view_min, view_max);
+}
+```
+
+* UpdateObjs()
+``` C++
+void cSceneSimChar::UpdateObjs(double time_step)
+{
+    int num_objs = GetNumObjs();
+    for (int i = 0; i < num_objs; ++i)
+    {
+        const tObjEntry& obj = mObjs[i];
+        if (obj.IsValid() && obj.mEndTime <= GetTime())
+        {
+            RemoveObj(i);
+        }
+    }
+}
+```
+
+* UpdateJoints()
+``` C++
+void cSceneSimChar::UpdateJoints(double timestep)
+{
+    int num_joints = GetNumJoints();
+    for (int j = 0; j < num_joints; ++j)
+    {
+        const tJointEntry& joint = mJoints[j];
+        if (joint.IsValid())
+        {
+            joint.mJoint->ApplyTau();
+        }
+    }
+}
+```
+
+* PostUpdateCharacters()
+``` C++
+void cSceneSimChar::PostUpdateCharacters(double time_step)
+{
+    int num_chars = GetNumChars();
+    for (int i = 0; i < num_chars; ++i)
+    {
+        const auto& curr_char = GetCharacter(i);
+        curr_char->PostUpdate(time_step);
+    }
+}
+```
+
+* PostUpdate()
+``` C++
+void cSceneSimChar::PostUpdate(double timestep)
+{
+}
+```
+
 # State and action definition
 
-# qpos order:
+* qpos order:
 ``` xml
 <joint name="chest" pos="0 0 0" range="0 68.75" type="ball"/>
 <joint name="neck" pos="0 0 0" range="0 57.3" type="ball"/>
@@ -32,182 +309,182 @@ At runtime the positions and orientations of all joints defined in the model are
 ``` C++
 int cCtController::GetStatePoseSize() const
 {
-	int pos_dim = GetPosFeatureDim();
-	int rot_dim = GetRotFeatureDim();
-	int size = mChar->GetNumBodyParts() * (pos_dim + rot_dim) + 1; // +1 for root y
+    int pos_dim = GetPosFeatureDim();
+    int rot_dim = GetRotFeatureDim();
+    int size = mChar->GetNumBodyParts() * (pos_dim + rot_dim) + 1; // +1 for root y
 
-	return size;
+    return size;
 }
 
 int cCtController::GetStateVelSize() const
 {
-	int pos_dim = GetPosFeatureDim();
-	int rot_dim = GetRotFeatureDim();
-	int size = mChar->GetNumBodyParts() * (pos_dim + rot_dim - 1);
-	return size;
+    int pos_dim = GetPosFeatureDim();
+    int rot_dim = GetRotFeatureDim();
+    int size = mChar->GetNumBodyParts() * (pos_dim + rot_dim - 1);
+    return size;
 }
 ```
 * Contents
 ``` C++
 void cCtController::BuildStatePose(Eigen::VectorXd& out_pose) const
 {
-	tMatrix origin_trans = mChar->BuildOriginTrans();
-	tQuaternion origin_quat = cMathUtil::RotMatToQuaternion(origin_trans);
+    tMatrix origin_trans = mChar->BuildOriginTrans();
+    tQuaternion origin_quat = cMathUtil::RotMatToQuaternion(origin_trans);
 
-	bool flip_stance = FlipStance();
-	if (flip_stance)
-	{
-		origin_trans.row(2) *= -1; // reflect z
-	}
+    bool flip_stance = FlipStance();
+    if (flip_stance)
+    {
+        origin_trans.row(2) *= -1; // reflect z
+    }
 
-	tVector root_pos = mChar->GetRootPos();
-	tVector root_pos_rel = root_pos;
+    tVector root_pos = mChar->GetRootPos();
+    tVector root_pos_rel = root_pos;
 
-	root_pos_rel[3] = 1;
-	root_pos_rel = origin_trans * root_pos_rel;
-	root_pos_rel[3] = 0;
+    root_pos_rel[3] = 1;
+    root_pos_rel = origin_trans * root_pos_rel;
+    root_pos_rel[3] = 0;
 
-	out_pose = Eigen::VectorXd::Zero(GetStatePoseSize());
-	out_pose[0] = root_pos_rel[1];
-	int num_parts = mChar->GetNumBodyParts();
-	int root_id = mChar->GetRootID();
+    out_pose = Eigen::VectorXd::Zero(GetStatePoseSize());
+    out_pose[0] = root_pos_rel[1];
+    int num_parts = mChar->GetNumBodyParts();
+    int root_id = mChar->GetRootID();
 
-	int pos_dim = GetPosFeatureDim();
-	int rot_dim = GetRotFeatureDim();
+    int pos_dim = GetPosFeatureDim();
+    int rot_dim = GetRotFeatureDim();
 
-	tQuaternion mirror_inv_origin_quat = origin_quat.conjugate();
-	mirror_inv_origin_quat = cMathUtil::MirrorQuaternion(mirror_inv_origin_quat, cMathUtil::eAxisZ);
+    tQuaternion mirror_inv_origin_quat = origin_quat.conjugate();
+    mirror_inv_origin_quat = cMathUtil::MirrorQuaternion(mirror_inv_origin_quat, cMathUtil::eAxisZ);
 
-	int idx = 1;
-	for (int i = 0; i < num_parts; ++i)
-	{
-		int part_id = RetargetJointID(i);
-		if (mChar->IsValidBodyPart(part_id))
-		{
-			const auto& curr_part = mChar->GetBodyPart(part_id);
-			tVector curr_pos = curr_part->GetPos();
+    int idx = 1;
+    for (int i = 0; i < num_parts; ++i)
+    {
+        int part_id = RetargetJointID(i);
+        if (mChar->IsValidBodyPart(part_id))
+        {
+            const auto& curr_part = mChar->GetBodyPart(part_id);
+            tVector curr_pos = curr_part->GetPos();
 
-			if (mRecordWorldRootPos && i == root_id)
-			{
-				if (flip_stance)
-				{
-					curr_pos = cMathUtil::QuatRotVec(origin_quat, curr_pos);
-					curr_pos[2] = -curr_pos[2];
-					curr_pos = cMathUtil::QuatRotVec(mirror_inv_origin_quat, curr_pos);
-				}
-			}
-			else
-			{
-				curr_pos[3] = 1;
-				curr_pos = origin_trans * curr_pos;
-				curr_pos -= root_pos_rel;
-				curr_pos[3] = 0;
-			}
+            if (mRecordWorldRootPos && i == root_id)
+            {
+                if (flip_stance)
+                {
+                    curr_pos = cMathUtil::QuatRotVec(origin_quat, curr_pos);
+                    curr_pos[2] = -curr_pos[2];
+                    curr_pos = cMathUtil::QuatRotVec(mirror_inv_origin_quat, curr_pos);
+                }
+            }
+            else
+            {
+                curr_pos[3] = 1;
+                curr_pos = origin_trans * curr_pos;
+                curr_pos -= root_pos_rel;
+                curr_pos[3] = 0;
+            }
 
-			out_pose.segment(idx, pos_dim) = curr_pos.segment(0, pos_dim);
-			idx += pos_dim;
+            out_pose.segment(idx, pos_dim) = curr_pos.segment(0, pos_dim);
+            idx += pos_dim;
 
-			tQuaternion curr_quat = curr_part->GetRotation();
-			if (mRecordWorldRootRot && i == root_id)
-			{
-				if (flip_stance)
-				{
-					curr_quat = origin_quat * curr_quat;
-					curr_quat = cMathUtil::MirrorQuaternion(curr_quat, cMathUtil::eAxisZ);
-					curr_quat = mirror_inv_origin_quat * curr_quat;
-				}
-			}
-			else
-			{
-				curr_quat = origin_quat * curr_quat;
-				if (flip_stance)
-				{
-					curr_quat = cMathUtil::MirrorQuaternion(curr_quat, cMathUtil::eAxisZ);
-				}
-			}
+            tQuaternion curr_quat = curr_part->GetRotation();
+            if (mRecordWorldRootRot && i == root_id)
+            {
+                if (flip_stance)
+                {
+                    curr_quat = origin_quat * curr_quat;
+                    curr_quat = cMathUtil::MirrorQuaternion(curr_quat, cMathUtil::eAxisZ);
+                    curr_quat = mirror_inv_origin_quat * curr_quat;
+                }
+            }
+            else
+            {
+                curr_quat = origin_quat * curr_quat;
+                if (flip_stance)
+                {
+                    curr_quat = cMathUtil::MirrorQuaternion(curr_quat, cMathUtil::eAxisZ);
+                }
+            }
 
-			if (curr_quat.w() < 0)
-			{
-				curr_quat.w() *= -1;
-				curr_quat.x() *= -1;
-				curr_quat.y() *= -1;
-				curr_quat.z() *= -1;
-			}
-			out_pose.segment(idx, rot_dim) = cMathUtil::QuatToVec(curr_quat).segment(0, rot_dim);
-			idx += rot_dim;
-		}
-	}
+            if (curr_quat.w() < 0)
+            {
+                curr_quat.w() *= -1;
+                curr_quat.x() *= -1;
+                curr_quat.y() *= -1;
+                curr_quat.z() *= -1;
+            }
+            out_pose.segment(idx, rot_dim) = cMathUtil::QuatToVec(curr_quat).segment(0, rot_dim);
+            idx += rot_dim;
+        }
+    }
 }
 
 void cCtController::BuildStateVel(Eigen::VectorXd& out_vel) const
 {
-	int num_parts = mChar->GetNumBodyParts();
-	tMatrix origin_trans = mChar->BuildOriginTrans();
-	tQuaternion origin_quat = cMathUtil::RotMatToQuaternion(origin_trans);
+    int num_parts = mChar->GetNumBodyParts();
+    tMatrix origin_trans = mChar->BuildOriginTrans();
+    tQuaternion origin_quat = cMathUtil::RotMatToQuaternion(origin_trans);
 
-	bool flip_stance = FlipStance();
-	if (flip_stance)
-	{
-		origin_trans.row(2) *= -1; // reflect z
-	}
+    bool flip_stance = FlipStance();
+    if (flip_stance)
+    {
+        origin_trans.row(2) *= -1; // reflect z
+    }
 
-	int pos_dim = GetPosFeatureDim();
-	int rot_dim = GetRotFeatureDim();
+    int pos_dim = GetPosFeatureDim();
+    int rot_dim = GetRotFeatureDim();
 
-	out_vel = Eigen::VectorXd::Zero(GetStateVelSize());
+    out_vel = Eigen::VectorXd::Zero(GetStateVelSize());
 
-	tQuaternion mirror_inv_origin_quat = origin_quat.conjugate();
-	mirror_inv_origin_quat = cMathUtil::MirrorQuaternion(mirror_inv_origin_quat, cMathUtil::eAxisZ);
-	
-	int idx = 0;
-	for (int i = 0; i < num_parts; ++i)
-	{
-		int part_id = RetargetJointID(i);
-		int root_id = mChar->GetRootID();
+    tQuaternion mirror_inv_origin_quat = origin_quat.conjugate();
+    mirror_inv_origin_quat = cMathUtil::MirrorQuaternion(mirror_inv_origin_quat, cMathUtil::eAxisZ);
+    
+    int idx = 0;
+    for (int i = 0; i < num_parts; ++i)
+    {
+        int part_id = RetargetJointID(i);
+        int root_id = mChar->GetRootID();
 
-		const auto& curr_part = mChar->GetBodyPart(part_id);
-		tVector curr_vel = curr_part->GetLinearVelocity();
+        const auto& curr_part = mChar->GetBodyPart(part_id);
+        tVector curr_vel = curr_part->GetLinearVelocity();
 
-		if (mRecordWorldRootRot && i == root_id)
-		{
-			if (flip_stance)
-			{
-				curr_vel = cMathUtil::QuatRotVec(origin_quat, curr_vel);
-				curr_vel[2] = -curr_vel[2];
-				curr_vel = cMathUtil::QuatRotVec(mirror_inv_origin_quat, curr_vel);
-			}
-		}
-		else
-		{
-			curr_vel = origin_trans * curr_vel;
-		}
+        if (mRecordWorldRootRot && i == root_id)
+        {
+            if (flip_stance)
+            {
+                curr_vel = cMathUtil::QuatRotVec(origin_quat, curr_vel);
+                curr_vel[2] = -curr_vel[2];
+                curr_vel = cMathUtil::QuatRotVec(mirror_inv_origin_quat, curr_vel);
+            }
+        }
+        else
+        {
+            curr_vel = origin_trans * curr_vel;
+        }
 
-		out_vel.segment(idx, pos_dim) = curr_vel.segment(0, pos_dim);
-		idx += pos_dim;
+        out_vel.segment(idx, pos_dim) = curr_vel.segment(0, pos_dim);
+        idx += pos_dim;
 
-		tVector curr_ang_vel = curr_part->GetAngularVelocity();
-		if (mRecordWorldRootRot && i == root_id)
-		{
-			if (flip_stance)
-			{
-				curr_ang_vel = cMathUtil::QuatRotVec(origin_quat, curr_ang_vel);
-				curr_ang_vel[2] = -curr_ang_vel[2];
-				curr_ang_vel = -curr_ang_vel;
-				curr_ang_vel = cMathUtil::QuatRotVec(mirror_inv_origin_quat, curr_ang_vel);
-			}
-		}
-		else
-		{
-			curr_ang_vel = origin_trans * curr_ang_vel;
-			if (flip_stance)
-			{
-				curr_ang_vel = -curr_ang_vel;
-			}
-		}
+        tVector curr_ang_vel = curr_part->GetAngularVelocity();
+        if (mRecordWorldRootRot && i == root_id)
+        {
+            if (flip_stance)
+            {
+                curr_ang_vel = cMathUtil::QuatRotVec(origin_quat, curr_ang_vel);
+                curr_ang_vel[2] = -curr_ang_vel[2];
+                curr_ang_vel = -curr_ang_vel;
+                curr_ang_vel = cMathUtil::QuatRotVec(mirror_inv_origin_quat, curr_ang_vel);
+            }
+        }
+        else
+        {
+            curr_ang_vel = origin_trans * curr_ang_vel;
+            if (flip_stance)
+            {
+                curr_ang_vel = -curr_ang_vel;
+            }
+        }
 
-		out_vel.segment(idx, rot_dim - 1) = curr_ang_vel.segment(0, rot_dim - 1);
-		idx += rot_dim - 1;
-	}
+        out_vel.segment(idx, rot_dim - 1) = curr_ang_vel.segment(0, rot_dim - 1);
+        idx += rot_dim - 1;
+    }
 }
 ```
 
@@ -215,14 +492,14 @@ void cCtController::BuildStateVel(Eigen::VectorXd& out_vel) const
 ``` C++
 int cCtController::GetActionPhaseSize() const
 {
-	return (mEnablePhaseAction) ? 1 : 0;
+    return (mEnablePhaseAction) ? 1 : 0;
 }
 int cCtController::GetActionCtrlSize() const
 {
-	int ctrl_size = mChar->GetNumDof();
-	int root_size = mChar->GetParamSize(mChar->GetRootID());
-	ctrl_size -= root_size;
-	return ctrl_size;
+    int ctrl_size = mChar->GetNumDof();
+    int root_size = mChar->GetParamSize(mChar->GetRootID());
+    ctrl_size -= root_size;
+    return ctrl_size;
 }
 ```
 
@@ -739,131 +1016,131 @@ SceneImitate.cpp
 ``` C++
 double cSceneImitate::CalcRewardImitate(const cSimCharacter& sim_char, const cKinCharacter& kin_char) const
 {
-	double pose_w = 0.5;
-	double vel_w = 0.05;
-	double end_eff_w = 0.15;
-	double root_w = 0.2;
-	double com_w = 0.1;
+    double pose_w = 0.5;
+    double vel_w = 0.05;
+    double end_eff_w = 0.15;
+    double root_w = 0.2;
+    double com_w = 0.1;
 
-	double total_w = pose_w + vel_w + end_eff_w + root_w + com_w;
-	pose_w /= total_w;
-	vel_w /= total_w;
-	end_eff_w /= total_w;
-	root_w /= total_w;
-	com_w /= total_w;
+    double total_w = pose_w + vel_w + end_eff_w + root_w + com_w;
+    pose_w /= total_w;
+    vel_w /= total_w;
+    end_eff_w /= total_w;
+    root_w /= total_w;
+    com_w /= total_w;
 
-	const double pose_scale = 2;
-	const double vel_scale = 0.1;
-	const double end_eff_scale = 40;
-	const double root_scale = 5;
-	const double com_scale = 10;
-	const double err_scale = 1;
+    const double pose_scale = 2;
+    const double vel_scale = 0.1;
+    const double end_eff_scale = 40;
+    const double root_scale = 5;
+    const double com_scale = 10;
+    const double err_scale = 1;
 
-	const auto& joint_mat = sim_char.GetJointMat();
-	const auto& body_defs = sim_char.GetBodyDefs();
-	double reward = 0;
+    const auto& joint_mat = sim_char.GetJointMat();
+    const auto& body_defs = sim_char.GetBodyDefs();
+    double reward = 0;
 
-	const Eigen::VectorXd& pose0 = sim_char.GetPose();
-	const Eigen::VectorXd& vel0 = sim_char.GetVel();
-	const Eigen::VectorXd& pose1 = kin_char.GetPose();
-	const Eigen::VectorXd& vel1 = kin_char.GetVel();
-	tMatrix origin_trans = sim_char.BuildOriginTrans();
-	tMatrix kin_origin_trans = kin_char.BuildOriginTrans();
+    const Eigen::VectorXd& pose0 = sim_char.GetPose();
+    const Eigen::VectorXd& vel0 = sim_char.GetVel();
+    const Eigen::VectorXd& pose1 = kin_char.GetPose();
+    const Eigen::VectorXd& vel1 = kin_char.GetVel();
+    tMatrix origin_trans = sim_char.BuildOriginTrans();
+    tMatrix kin_origin_trans = kin_char.BuildOriginTrans();
 
-	tVector com0_world = sim_char.CalcCOM();
-	tVector com_vel0_world = sim_char.CalcCOMVel();
-	tVector com1_world;
-	tVector com_vel1_world;
-	cRBDUtil::CalcCoM(joint_mat, body_defs, pose1, vel1, com1_world, com_vel1_world);
+    tVector com0_world = sim_char.CalcCOM();
+    tVector com_vel0_world = sim_char.CalcCOMVel();
+    tVector com1_world;
+    tVector com_vel1_world;
+    cRBDUtil::CalcCoM(joint_mat, body_defs, pose1, vel1, com1_world, com_vel1_world);
 
-	int root_id = sim_char.GetRootID();
-	tVector root_pos0 = cKinTree::GetRootPos(joint_mat, pose0);
-	tVector root_pos1 = cKinTree::GetRootPos(joint_mat, pose1);
-	tQuaternion root_rot0 = cKinTree::GetRootRot(joint_mat, pose0);
-	tQuaternion root_rot1 = cKinTree::GetRootRot(joint_mat, pose1);
-	tVector root_vel0 = cKinTree::GetRootVel(joint_mat, vel0);
-	tVector root_vel1 = cKinTree::GetRootVel(joint_mat, vel1);
-	tVector root_ang_vel0 = cKinTree::GetRootAngVel(joint_mat, vel0);
-	tVector root_ang_vel1 = cKinTree::GetRootAngVel(joint_mat, vel1);
+    int root_id = sim_char.GetRootID();
+    tVector root_pos0 = cKinTree::GetRootPos(joint_mat, pose0);
+    tVector root_pos1 = cKinTree::GetRootPos(joint_mat, pose1);
+    tQuaternion root_rot0 = cKinTree::GetRootRot(joint_mat, pose0);
+    tQuaternion root_rot1 = cKinTree::GetRootRot(joint_mat, pose1);
+    tVector root_vel0 = cKinTree::GetRootVel(joint_mat, vel0);
+    tVector root_vel1 = cKinTree::GetRootVel(joint_mat, vel1);
+    tVector root_ang_vel0 = cKinTree::GetRootAngVel(joint_mat, vel0);
+    tVector root_ang_vel1 = cKinTree::GetRootAngVel(joint_mat, vel1);
 
-	double pose_err = 0;
-	double vel_err = 0;
-	double end_eff_err = 0;
-	double root_err = 0;
-	double com_err = 0;
-	double heading_err = 0;
+    double pose_err = 0;
+    double vel_err = 0;
+    double end_eff_err = 0;
+    double root_err = 0;
+    double com_err = 0;
+    double heading_err = 0;
 
-	int num_end_effs = 0;
-	int num_joints = sim_char.GetNumJoints();
-	assert(num_joints == mJointWeights.size());
+    int num_end_effs = 0;
+    int num_joints = sim_char.GetNumJoints();
+    assert(num_joints == mJointWeights.size());
 
-	double root_rot_w = mJointWeights[root_id];
-	pose_err += root_rot_w * cKinTree::CalcRootRotErr(joint_mat, pose0, pose1);
-	vel_err += root_rot_w * cKinTree::CalcRootAngVelErr(joint_mat, vel0, vel1);
+    double root_rot_w = mJointWeights[root_id];
+    pose_err += root_rot_w * cKinTree::CalcRootRotErr(joint_mat, pose0, pose1);
+    vel_err += root_rot_w * cKinTree::CalcRootAngVelErr(joint_mat, vel0, vel1);
 
-	for (int j = root_id + 1; j < num_joints; ++j)
-	{
-		double w = mJointWeights[j];
-		double curr_pose_err = cKinTree::CalcPoseErr(joint_mat, j, pose0, pose1);
-		double curr_vel_err = cKinTree::CalcVelErr(joint_mat, j, vel0, vel1);
-		pose_err += w * curr_pose_err;
-		vel_err += w * curr_vel_err;
+    for (int j = root_id + 1; j < num_joints; ++j)
+    {
+        double w = mJointWeights[j];
+        double curr_pose_err = cKinTree::CalcPoseErr(joint_mat, j, pose0, pose1);
+        double curr_vel_err = cKinTree::CalcVelErr(joint_mat, j, vel0, vel1);
+        pose_err += w * curr_pose_err;
+        vel_err += w * curr_vel_err;
 
-		bool is_end_eff = sim_char.IsEndEffector(j);
-		if (is_end_eff)
-		{
-			tVector pos0 = sim_char.CalcJointPos(j);
-			tVector pos1 = cKinTree::CalcJointWorldPos(joint_mat, pose1, j);
-			double ground_h0 = mGround->SampleHeight(pos0);
-			double ground_h1 = kin_char.GetOriginPos()[1];
+        bool is_end_eff = sim_char.IsEndEffector(j);
+        if (is_end_eff)
+        {
+            tVector pos0 = sim_char.CalcJointPos(j);
+            tVector pos1 = cKinTree::CalcJointWorldPos(joint_mat, pose1, j);
+            double ground_h0 = mGround->SampleHeight(pos0);
+            double ground_h1 = kin_char.GetOriginPos()[1];
 
-			tVector pos_rel0 = pos0 - root_pos0;
-			tVector pos_rel1 = pos1 - root_pos1;
-			pos_rel0[1] = pos0[1] - ground_h0;
-			pos_rel1[1] = pos1[1] - ground_h1;
+            tVector pos_rel0 = pos0 - root_pos0;
+            tVector pos_rel1 = pos1 - root_pos1;
+            pos_rel0[1] = pos0[1] - ground_h0;
+            pos_rel1[1] = pos1[1] - ground_h1;
 
-			pos_rel0 = origin_trans * pos_rel0;
-			pos_rel1 = kin_origin_trans * pos_rel1;
+            pos_rel0 = origin_trans * pos_rel0;
+            pos_rel1 = kin_origin_trans * pos_rel1;
 
-			double curr_end_err = (pos_rel1 - pos_rel0).squaredNorm();
-			end_eff_err += curr_end_err;
-			++num_end_effs;
-		}
-	}
+            double curr_end_err = (pos_rel1 - pos_rel0).squaredNorm();
+            end_eff_err += curr_end_err;
+            ++num_end_effs;
+        }
+    }
 
-	if (num_end_effs > 0)
-	{
-		end_eff_err /= num_end_effs;
-	}
+    if (num_end_effs > 0)
+    {
+        end_eff_err /= num_end_effs;
+    }
 
-	double root_ground_h0 = mGround->SampleHeight(sim_char.GetRootPos());
-	double root_ground_h1 = kin_char.GetOriginPos()[1];
-	root_pos0[1] -= root_ground_h0;
-	root_pos1[1] -= root_ground_h1;
-	double root_pos_err = (root_pos0 - root_pos1).squaredNorm();
-	
-	double root_rot_err = cMathUtil::QuatDiffTheta(root_rot0, root_rot1);
-	root_rot_err *= root_rot_err;
+    double root_ground_h0 = mGround->SampleHeight(sim_char.GetRootPos());
+    double root_ground_h1 = kin_char.GetOriginPos()[1];
+    root_pos0[1] -= root_ground_h0;
+    root_pos1[1] -= root_ground_h1;
+    double root_pos_err = (root_pos0 - root_pos1).squaredNorm();
+    
+    double root_rot_err = cMathUtil::QuatDiffTheta(root_rot0, root_rot1);
+    root_rot_err *= root_rot_err;
 
-	double root_vel_err = (root_vel1 - root_vel0).squaredNorm();
-	double root_ang_vel_err = (root_ang_vel1 - root_ang_vel0).squaredNorm();
+    double root_vel_err = (root_vel1 - root_vel0).squaredNorm();
+    double root_ang_vel_err = (root_ang_vel1 - root_ang_vel0).squaredNorm();
 
-	root_err = root_pos_err
-			+ 0.1 * root_rot_err
-			+ 0.01 * root_vel_err
-			+ 0.001 * root_ang_vel_err;
-	com_err = 0.1 * (com_vel1_world - com_vel0_world).squaredNorm();
+    root_err = root_pos_err
+            + 0.1 * root_rot_err
+            + 0.01 * root_vel_err
+            + 0.001 * root_ang_vel_err;
+    com_err = 0.1 * (com_vel1_world - com_vel0_world).squaredNorm();
 
-	double pose_reward = exp(-err_scale * pose_scale * pose_err);
-	double vel_reward = exp(-err_scale * vel_scale * vel_err);
-	double end_eff_reward = exp(-err_scale * end_eff_scale * end_eff_err);
-	double root_reward = exp(-err_scale * root_scale * root_err);
-	double com_reward = exp(-err_scale * com_scale * com_err);
+    double pose_reward = exp(-err_scale * pose_scale * pose_err);
+    double vel_reward = exp(-err_scale * vel_scale * vel_err);
+    double end_eff_reward = exp(-err_scale * end_eff_scale * end_eff_err);
+    double root_reward = exp(-err_scale * root_scale * root_err);
+    double com_reward = exp(-err_scale * com_scale * com_err);
 
-	reward = pose_w * pose_reward + vel_w * vel_reward + end_eff_w * end_eff_reward
-		+ root_w * root_reward + com_w * com_reward;
+    reward = pose_w * pose_reward + vel_w * vel_reward + end_eff_w * end_eff_reward
+        + root_w * root_reward + com_w * com_reward;
 
-	return reward;
+    return reward;
 }
 ```
 
