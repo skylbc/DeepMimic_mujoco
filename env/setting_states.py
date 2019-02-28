@@ -3,6 +3,7 @@
 import os
 from mujoco_py import load_model_from_xml, MjSim, MjViewer
 import json
+import copy
 import numpy as np
 from pyquaternion import Quaternion
 
@@ -18,7 +19,7 @@ DOF_DEF = {"chest": 3, "neck": 3, "right_shoulder": 3, "right_elbow": 1,
            "left_shoulder": 3, "left_elbow": 1, "right_hip": 3, "right_knee": 1, 
            "right_ankle": 3, "left_hip": 3, "left_knee": 1, "left_ankle": 3}
 
-file_path = '/home/mingfei/Documents/DeepMimic/mujoco/humanoid_deepmimic/envs/asset/humanoid_deepmimic.xml'
+file_path = '/Users/mingfeisun/Documents/HKUST/research/2019/TencentAILab/codes/DeepMimic/mujoco/humanoid_deepmimic/envs/asset/humanoid_deepmimic.xml'
 with open(file_path) as fin:
     MODEL_XML = fin.read()
 
@@ -79,14 +80,34 @@ def read_velocities():
     return velocities
 
 def align_rotation(rot):
-    return rot
+    # return rot
 
     q_input = Quaternion(rot[0], rot[1], rot[2], rot[3])
-    q_align_right = Quaternion(matrix=np.array([[1.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]]))
-    q_align_left = Quaternion(matrix=np.array([[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]]))
+
+    axis = q_input.axis
+    angle = q_input.angle
+
+    # tf_matrix = np.array([[1.0, 0.0, 0.0], 
+    #                       [0.0, 0.0, -1.0], 
+    #                       [0.0, 1.0, 0.0]])
+    # axis_new = np.matmul(tf_matrix, axis)
+
+    # axis_new = copy.deepcopy(axis)
+    # tmp_val = axis_new[2]
+    # axis_new[2] = axis[1]
+    # axis_new[1] = -tmp_val
+    # q_output = Quaternion(axis=axis_new, angle=angle)
+
+    q_align_right = Quaternion(matrix=np.array([[1.0, 0.0, 0.0], 
+                                                [0.0, 0.0, 1.0], 
+                                                [0.0, -1.0, 0.0]]))
+                                                
+    q_align_left = Quaternion(matrix=np.array([[1.0, 0.0, 0.0], 
+                                               [0.0, 0.0, -1.0], 
+                                               [0.0, 1.0, 0.0]]))
 
     # q_output = q_align_right * q_input * q_align_left
-    q_output = q_input * q_align_right
+    q_output = q_align_left * q_input * q_align_right
 
     return q_output.elements
 
@@ -150,7 +171,7 @@ while True:
                 assert idx[1] - idx[0] == len(tmp_val)
                 sim_state.qpos[idx[0]:idx[1]] = state[each_joint]
 
-        print(sim_state.qpos)
+        # print(sim_state.qpos)
         sim.set_state(sim_state)
         sim.forward()
         viewer.render()
