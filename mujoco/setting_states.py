@@ -19,6 +19,26 @@ DOF_DEF = {"chest": 3, "neck": 3, "right_shoulder": 3, "right_elbow": 1,
            "left_shoulder": 3, "left_elbow": 1, "right_hip": 3, "right_knee": 1, 
            "right_ankle": 3, "left_hip": 3, "left_knee": 1, "left_ankle": 3}
 
+PARAMS_KP_KD = {"chest": [1000, 100], "neck": [100, 10], "right_shoulder": [400, 40], "right_elbow": [300, 30], 
+           "left_shoulder": [400, 40], "left_elbow": [300, 30], "right_hip": [500, 50], "right_knee": [500, 50], 
+           "right_ankle": [400, 40], "left_hip": [500, 50], "left_knee": [500, 50], "left_ankle": [400, 40]}
+
+'''
+Some reference for KD controller:
+1. 
+mjtNum*   qfrc_bias;            // C(qpos,qvel)                             (nv x 1)
+
+2.
+mj_rne
+void mj_rne(const mjModel* m, mjData* d, int flg_acc, mjtNum* result);
+RNE: compute M(qpos)*qacc + C(qpos,qvel); flg_acc=0 removes inertial term.
+
+3. 
+mj_solveM
+void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n);
+Solve linear system M * x = y using factorization: x = inv(L'*D*L)*y
+'''
+
 file_path = 'humanoid_deepmimic/envs/asset/humanoid_deepmimic.xml'
 with open(file_path) as fin:
     MODEL_XML = fin.read()
@@ -28,37 +48,6 @@ sim = MjSim(model)
 viewer = MjViewer(sim)
 
 
-def calc_vel_from_frames(frame_0, frame_1, dt):
-    curr_idx = 0
-    offset_idx = 7 # root joint offset: 3 (position) + 4 (orientation)
-    vel = []
-    for each_joint in BODY_JOINTS:
-        curr_idx = offset_idx
-        dof = DOF_DEF[each_joint]
-        if dof == 1:
-            offset_idx += dof
-            tmp_vel = (frame_1[curr_idx:offset_idx] - frame_0[curr_idx:offset_idx])*1.0/dt
-            vel += [tmp_vel[0]]
-        elif dof == 3:
-            offset_idx = offset_idx + dof + 1
-            seg0 = frame_0[curr_idx:offset_idx]
-            seg0 = align_rotation(seg0)
-
-            seg1 = frame_1[curr_idx:offset_idx]
-            seg1 = align_rotation(seg1)
-
-            q_0 = Quaternion(seg0[0], seg0[1], seg0[2], seg0[3])
-            q_1 = Quaternion(seg1[0], seg1[1], seg1[2], seg1[3])
-
-            q_diff = q_0.conjugate * q_1
-            axis = q_diff.axis
-            angle = q_diff.angle
-            
-            tmp_vel = (angle * 1.0)/dt * axis
-            vel += [tmp_vel[0], tmp_vel[1], tmp_vel[2]]
-
-    return np.array(vel)
-
 def calc_angular_vel_from_frames(orien_0, orien_1, dt):
     seg0 = align_rotation(orien_0)
     seg1 = align_rotation(orien_1)
@@ -66,7 +55,8 @@ def calc_angular_vel_from_frames(orien_0, orien_1, dt):
     q_0 = Quaternion(seg0[0], seg0[1], seg0[2], seg0[3])
     q_1 = Quaternion(seg1[0], seg1[1], seg1[2], seg1[3])
 
-    q_diff =  q_1 * q_0.conjugate
+    q_diff =  q_0.conjugate * q_1
+    # q_diff =  q_1 * q_0.conjugate
     axis = q_diff.axis
     angle = q_diff.angle
     
@@ -86,7 +76,6 @@ def calc_linear_vel_from_frames(frame_0, frame_1, dt):
     vel_linear = align_position(vel_linear)
 
     return vel_linear
-
 
 def align_rotation(rot):
     q_input = Quaternion(rot[0], rot[1], rot[2], rot[3])
@@ -113,7 +102,7 @@ def read_positions():
 
     durations = []
 
-    with open('./motions/humanoid3d_walk.txt') as fin:
+    with open('./motions/humanoid3d_crawl.txt') as fin:
         data = json.load(fin)
         motions = np.array(data["Frames"])
         total_time = 0.0
@@ -142,7 +131,7 @@ def read_positions():
 
     return all_states, durations
 
-def read_velocities():
+def read_velocities(dt=None):
     states, durations = read_positions()
 
     offset_root_joint_vel = 6 # 6 = 3 (linear velocity) + 3 (angular velocity)
@@ -153,13 +142,15 @@ def read_velocities():
     for idx in range(n_states - 1):
         state_0 = states[idx]
         state_1 = states[idx+1]
-        dt = durations[idx]
+
+        if not dt:
+            dt = durations[idx]
 
         curr_idx = 0
         offset_idx = 6
         
-        velocities[idx, :3] = calc_linear_vel_from_frames(state_0["root_pos"], state_1["root_pos"], dt)
-        velocities[idx, 3:offset_idx] = calc_angular_vel_from_frames(state_0["root_rot"], state_1["root_rot"], dt)
+        velocities[idx, 0:3] = calc_linear_vel_from_frames(state_0["root_pos"], state_1["root_pos"], dt)
+        velocities[idx, 3:6] = calc_angular_vel_from_frames(state_0["root_rot"], state_1["root_rot"], dt)
 
         for each_joint in BODY_JOINTS:
             curr_idx = offset_idx
@@ -167,12 +158,14 @@ def read_velocities():
             pos_1 = state_1[each_joint]
             dof = DOF_DEF[each_joint]
 
+            velocities[idx, 14] = (np.random.rand() - 0.5) * 10
+
             if dof == 1:
                 offset_idx += 1
-                velocities[idx, curr_idx:offset_idx] = (pos_1 - pos_0) * 1.0 / dt
+                # velocities[idx, curr_idx:offset_idx] = (pos_1 - pos_0) * 1.0 / dt
             elif dof == 3:
                 offset_idx += 3
-                velocities[idx, curr_idx:offset_idx] = calc_angular_vel_from_frames(pos_0, pos_1, dt)
+                # velocities[idx, curr_idx:offset_idx] = calc_angular_vel_from_frames(pos_0, pos_1, dt)
 
     return velocities
 
@@ -181,13 +174,15 @@ def render_from_pos():
 
     from time import sleep
 
+    phase_offset = np.array([0.0, 0.0, 0.0])
+
     while True:
         for k in range(len(states)):
             state = states[k]
             dura = durations[k]
             sim_state = sim.get_state()
 
-            sim_state.qpos[:3] = state['root_pos']
+            sim_state.qpos[:3] = np.array(state['root_pos']) + phase_offset
             sim_state.qpos[3:7] = state['root_rot']
 
             for each_joint in BODY_JOINTS:
@@ -205,7 +200,9 @@ def render_from_pos():
             sim.forward()
             viewer.render()
 
-            # sleep(dura)
+        sim_state = sim.get_state()
+        phase_offset = sim_state.qpos[:3]
+        phase_offset[2] = 0
 
         if os.getenv('TESTING') is not None:
             break
@@ -223,8 +220,40 @@ def render_from_vel():
 
         if os.getenv('TESTING') is not None:
             break
-    pass
+
+def render_from_torques():
+    kp, kd = [], []
+    for each_joint in BODY_JOINTS:
+        kp += [PARAMS_KP_KD[each_joint][0] for _ in range(DOF_DEF[each_joint])]
+        kd += [PARAMS_KP_KD[each_joint][1] for _ in range(DOF_DEF[each_joint])]
+
+    kp = np.array(kp)
+    kd = np.array(kd)
+
+    pos_err = calc_pos_err()
+    vel_err = calc_vel_err()
+    while True:
+        for (p_err, v_err) in zip(pos_err, vel_err):
+            # torque = kp * p_err[6:] + kd * v_err[6:]
+            torque = kp * p_err[6:]
+            print(torque)
+            sim.data.ctrl[:] = torque[:]
+            # sim.forward()
+            sim.step()
+            viewer.render()
+
+def calc_pos_err():
+    # pos_states, _ = read_positions()
+    # curr_velocities = read_velocities()
+    pos_err = read_velocities(dt=1.0)
+    return pos_err[:-1, :]
+
+def calc_vel_err():
+    velocities = read_velocities()
+    vel_err = velocities[1:] - velocities[:-1]
+    return vel_err
 
 if __name__ == "__main__":
+    render_from_torques()
     # render_from_pos()
-    render_from_vel()
+    # render_from_vel()

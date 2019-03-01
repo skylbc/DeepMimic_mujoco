@@ -25,11 +25,12 @@
         <geom condim="3" friction="1 .1 .1" material="MatPlane" name="floor" pos="0 0 0" rgba="0.8 0.9 0.8 1" size="20 20 0.125" type="plane"/>
         <!-- <geom condim="3" material="MatPlane" name="floor" pos="0 0 0" size="10 10 0.125" type="plane"/>-->
         <body name="root" pos="0 0 1">
-            <camera name="track" mode="trackcom" pos="0 -4 1" xyaxes="1 0 0 0 0 1"/>
+            <camera name="track" mode="trackcom" pos="0 -4 0.7" xyaxes="1 0 0 0 0 1"/>
             <geom name="root" pos="0 0 0.07" size=".09" type="sphere"/>
             <joint armature="0" damping="0" limited="false" name="root" pos="0 0 0" stiffness="0" type="free"/>
             <body name="joint_waist" pos="0 0 0.205">
                 <geom name="joint_waist" pos="0 0 0" size="0.07" type="sphere"/>
+                <geom name="joint_front_x" rgba='1 0 0 1' pos="0.08 0 0" size="0.01 0.01 0.01" type="box"/>
             </body>
             <body name="chest" pos="0 0 0.236151">
                 <geom name="chest" pos="0 0 0.12" size=".11" type="sphere"/>
@@ -67,7 +68,7 @@
                     </body>
                     <body name="right_elbow" pos="0 0 -0.274788">
                         <geom fromto="0 0 -0.0525 0 0 -0.1875" name="right_elbow" size="0.04" type="capsule"/>
-                        <joint armature="0" damping="0" limited="true" axis="0 -1 0" name="right_elbow" pos="0 0 0" range="-150 0" stiffness="0" type="hinge"/>
+                        <joint armature="0" damping="0" limited="true" axis="0 -1 0" name="right_elbow" pos="0 0 0" range="0 150" stiffness="0" type="hinge"/>
                         <body name="joint_right_elbow" pos="0 0 0">
                             <geom name="joint_right_elbow" pos="0 0 0" size="0.03" type="sphere"/>
                         </body>
@@ -92,7 +93,7 @@
                     </body>
                     <body name="left_elbow" pos="0 0 -0.274788">
                         <geom fromto="0 0 -0.0525 0 0 -0.1875" name="left_elbow" size="0.04" type="capsule"/>
-                        <joint armature="0" damping="0" limited="true" axis="0 -1 0" name="left_elbow" pos="0 0 0" range="-150 0" stiffness="0" type="hinge"/>
+                        <joint armature="0" damping="0" limited="true" axis="0 -1 0" name="left_elbow" pos="0 0 0" range="0 150" stiffness="0" type="hinge"/>
                         <body name="joint_left_elbow" pos="0 0 0">
                             <geom name="joint_left_elbow" pos="0 0 0" size="0.03" type="sphere"/>
                         </body>
@@ -115,7 +116,7 @@
                 </body>
                 <body name="right_knee" pos="0 0 -0.421546">
                     <geom fromto="0 0 -0.045 0 0 -0.355" name="right_knee" size="0.05" type="capsule"/>
-                    <joint armature="0" damping="0" limited="true" axis="0 -1 0" name="right_knee" pos="0 0 0" range="0 150" stiffness="0" type="hinge"/>
+                    <joint armature="0" damping="0" limited="true" axis="0 -1 0" name="right_knee" pos="0 0 0" range="-150 0" stiffness="0" type="hinge"/>
                     <body name="joint_right_knee" pos="0 0 0">
                         <geom name="joint_right_knee" pos="0 0 0" size="0.035" type="sphere"/>
                     </body>
@@ -146,7 +147,7 @@
                 </body>
                 <body name="left_knee" pos="0 0 -0.421546">
                     <geom fromto="0 0 -0.045 0 0 -0.355" name="left_knee" size="0.05" type="capsule"/>
-                    <joint armature="0" damping="0" limited="true" axis="0 -1 0" name="left_knee" pos="0 0 0" range="0 150" stiffness="0" type="hinge"/>
+                    <joint armature="0" damping="0" limited="true" axis="0 -1 0" name="left_knee" pos="0 0 0" range="-150 0" stiffness="0" type="hinge"/>
                     <body name="joint_left_knee" pos="0 0 0">
                         <geom name="joint_left_knee" pos="0 0 0" size="0.035" type="sphere"/>
                     </body>
@@ -185,14 +186,18 @@
         <motor gear="100" joint="chest_y" name="chest_y"/>
         <motor gear="100" joint="chest_z" name="chest_z"/>
         -->
-        <motor gear="0 0 1" joint="chest" name="chest"/>
+        <motor gear="100 0 0" joint="chest" name="chest_x"/>
+        <motor gear="0 100 0" joint="chest" name="chest_y"/>
+        <motor gear="0 0 100" joint="chest" name="chest_z"/>
 
         <!-- 
         <motor gear="100" joint="neck_x" name="neck_x"/>
         <motor gear="100" joint="neck_y" name="neck_y"/>
         <motor gear="100" joint="neck_z" name="neck_z"/>
         -->
-        <motor gear="0 0 1" joint="neck" name="neck"/>
+        <motor gear="100 0 0" joint="neck" name="neck_x"/>
+        <motor gear="0 100 0" joint="neck" name="neck_y"/>
+        <motor gear="0 0 100" joint="neck" name="neck_z"/>
 
         <!-- 
         <motor gear="25" joint="right_shoulder_x" name="right_shoulder_x"/>
@@ -200,9 +205,11 @@
         <motor gear="25" joint="right_shoulder_z" name="right_shoulder_z"/>
         -->
 
-        <motor gear="0 0 1" joint="right_shoulder" name="right_shoulder"/>
+        <motor gear="100 0 0" joint="right_shoulder" name="right_shoulder_x"/>
+        <motor gear="0 100 0" joint="right_shoulder" name="right_shoulder_y"/>
+        <motor gear="0 0 100" joint="right_shoulder" name="right_shoulder_z"/>
 
-        <motor gear="25" joint="right_elbow" name="right_elbow"/>
+        <motor gear="100" joint="right_elbow" name="right_elbow"/>
 
         <!--
         <motor gear="25" joint="left_shoulder_x" name="left_shoulder_x"/>
@@ -210,9 +217,11 @@
         <motor gear="25" joint="left_shoulder_z" name="left_shoulder_z"/>
         -->
 
-        <motor gear="0 0 1" joint="left_shoulder" name="left_shoulder"/>
+        <motor gear="100 0 0" joint="left_shoulder" name="left_shoulder_x"/>
+        <motor gear="0 100 0" joint="left_shoulder" name="left_shoulder_y"/>
+        <motor gear="0 0 100" joint="left_shoulder" name="left_shoulder_z"/>
 
-        <motor gear="25" joint="left_elbow" name="left_elbow"/>
+        <motor gear="100" joint="left_elbow" name="left_elbow"/>
 
         <!--
         <motor gear="100" joint="right_hip_x" name="right_hip_x"/>
@@ -220,7 +229,9 @@
         <motor gear="100" joint="right_hip_z" name="right_hip_z"/>
         -->
         
-        <motor gear="0 0 1" joint="right_hip" name="right_hip"/>
+        <motor gear="100 0 0" joint="right_hip" name="right_hip_x"/>
+        <motor gear="0 300 0" joint="right_hip" name="right_hip_y"/>
+        <motor gear="0 0 100" joint="right_hip" name="right_hip_z"/>
 
         <motor gear="200" joint="right_knee" name="right_knee"/>
 
@@ -229,14 +240,18 @@
         <motor gear="100" joint="right_ankle_y" name="right_ankle_y"/>
         <motor gear="100" joint="right_ankle_z" name="right_ankle_z"/>
         -->
-        <motor gear="0 0 1" joint="right_ankle" name="right_ankle"/>
+        <motor gear="100 0 0" joint="right_ankle" name="right_ankle_x"/>
+        <motor gear="0 100 0" joint="right_ankle" name="right_ankle_y"/>
+        <motor gear="0 0 100" joint="right_ankle" name="right_ankle_z"/>
 
         <!--
         <motor gear="100" joint="left_hip_x" name="left_hip_x"/>
         <motor gear="300" joint="left_hip_y" name="left_hip_y"/>
         <motor gear="100" joint="left_hip_z" name="left_hip_z"/>
         -->
-        <motor gear="0 0 1" joint="left_hip" name="left_hip"/>
+        <motor gear="100 0 0" joint="left_hip" name="left_hip_x"/>
+        <motor gear="0 300 0" joint="left_hip" name="left_hip_y"/>
+        <motor gear="0 0 100" joint="left_hip" name="left_hip_z"/>
 
         <motor gear="200" joint="left_knee" name="left_knee"/>
 
@@ -245,7 +260,8 @@
         <motor gear="100" joint="left_ankle_y" name="left_ankle_y"/>
         <motor gear="100" joint="left_ankle_z" name="left_ankle_z"/>
         -->
-
-        <motor gear="0 0 1" joint="left_ankle" name="left_ankle"/>
+        <motor gear="100 0 0" joint="left_ankle" name="left_ankle_x"/>
+        <motor gear="0 100 0" joint="left_ankle" name="left_ankle_y"/>
+        <motor gear="0 0 100" joint="left_ankle" name="left_ankle_z"/>
     </actuator>
 </mujoco>
