@@ -19,7 +19,7 @@ DOF_DEF = {"chest": 3, "neck": 3, "right_shoulder": 3, "right_elbow": 1,
            "left_shoulder": 3, "left_elbow": 1, "right_hip": 3, "right_knee": 1, 
            "right_ankle": 3, "left_hip": 3, "left_knee": 1, "left_ankle": 3}
 
-file_path = '/Users/mingfeisun/Documents/HKUST/research/2019/TencentAILab/codes/DeepMimic/mujoco/humanoid_deepmimic/envs/asset/humanoid_deepmimic.xml'
+file_path = '/home/mingfei/Documents/DeepMimic/mujoco/humanoid_deepmimic/envs/asset/humanoid_deepmimic.xml'
 with open(file_path) as fin:
     MODEL_XML = fin.read()
 
