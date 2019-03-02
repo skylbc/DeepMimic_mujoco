@@ -158,14 +158,14 @@ def read_velocities(dt=None):
             pos_1 = state_1[each_joint]
             dof = DOF_DEF[each_joint]
 
-            velocities[idx, 14] = (np.random.rand() - 0.5) * 10
+            # velocities[idx, 26] = (np.random.rand() - 0.5) * 10
 
             if dof == 1:
                 offset_idx += 1
-                # velocities[idx, curr_idx:offset_idx] = (pos_1 - pos_0) * 1.0 / dt
+                velocities[idx, curr_idx:offset_idx] = (pos_1 - pos_0) * 1.0 / dt
             elif dof == 3:
                 offset_idx += 3
-                # velocities[idx, curr_idx:offset_idx] = calc_angular_vel_from_frames(pos_0, pos_1, dt)
+                velocities[idx, curr_idx:offset_idx] = calc_angular_vel_from_frames(pos_0, pos_1, dt)
 
     return velocities
 
@@ -234,8 +234,8 @@ def render_from_torques():
     vel_err = calc_vel_err()
     while True:
         for (p_err, v_err) in zip(pos_err, vel_err):
-            # torque = kp * p_err[6:] + kd * v_err[6:]
-            torque = kp * p_err[6:]
+            torque = kp * p_err[6:] + kd * v_err[6:]
+            # torque = kp * p_err[6:]
             print(torque)
             sim.data.ctrl[:] = torque[:]
             # sim.forward()
