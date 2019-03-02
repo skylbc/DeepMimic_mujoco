@@ -48,23 +48,6 @@ sim = MjSim(model)
 viewer = MjViewer(sim)
 
 
-def calc_angular_vel_from_frames(orien_0, orien_1, dt):
-    seg0 = align_rotation(orien_0)
-    seg1 = align_rotation(orien_1)
-
-    q_0 = Quaternion(seg0[0], seg0[1], seg0[2], seg0[3])
-    q_1 = Quaternion(seg1[0], seg1[1], seg1[2], seg1[3])
-
-    q_diff =  q_0.conjugate * q_1
-    # q_diff =  q_1 * q_0.conjugate
-    axis = q_diff.axis
-    angle = q_diff.angle
-    
-    tmp_vel = (angle * 1.0)/dt * axis
-    vel_angular = np.array([tmp_vel[0], tmp_vel[1], tmp_vel[2]])
-
-    return vel_angular
-
 def calc_linear_vel_from_frames(frame_0, frame_1, dt):
     curr_idx = 0
     offset_idx = 0 # root joint offset: 3 (position) + 4 (orientation)
@@ -102,7 +85,7 @@ def read_positions():
 
     durations = []
 
-    with open('./motions/humanoid3d_crawl.txt') as fin:
+    with open('./motions/humanoid3d_dance_b.txt') as fin:
         data = json.load(fin)
         motions = np.array(data["Frames"])
         total_time = 0.0
@@ -230,8 +213,8 @@ def render_from_torques():
     kp = np.array(kp)
     kd = np.array(kd)
 
-    pos_err = calc_pos_err()
-    vel_err = calc_vel_err()
+    pos_err = calc_pos_err_test()
+    vel_err = calc_vel_err_test()
     while True:
         for (p_err, v_err) in zip(pos_err, vel_err):
             torque = kp * p_err[6:] + kd * v_err[6:]
@@ -242,18 +225,91 @@ def render_from_torques():
             sim.step()
             viewer.render()
 
-def calc_pos_err():
+def calc_pos_err_test():
     # pos_states, _ = read_positions()
     # curr_velocities = read_velocities()
     pos_err = read_velocities(dt=1.0)
     return pos_err[:-1, :]
 
-def calc_vel_err():
+def calc_vel_err_test():
     velocities = read_velocities()
     vel_err = velocities[1:] - velocities[:-1]
     return vel_err
 
+def action2torques(action):
+    pass
+
+
+def calc_angular_vel_from_frames(orien_0, orien_1, dt):
+    seg0 = align_rotation(orien_0)
+    seg1 = align_rotation(orien_1)
+
+    q_0 = Quaternion(seg0[0], seg0[1], seg0[2], seg0[3])
+    q_1 = Quaternion(seg1[0], seg1[1], seg1[2], seg1[3])
+
+    q_diff =  q_0.conjugate * q_1
+    # q_diff =  q_1 * q_0.conjugate
+    axis = q_diff.axis
+    angle = q_diff.angle
+    
+    tmp_vel = (angle * 1.0)/dt * axis
+    vel_angular = np.array([tmp_vel[0], tmp_vel[1], tmp_vel[2]])
+
+    return vel_angular
+
+
+def calc_pos_err(now_pos, next_pos):
+    curr_idx = 0
+    offset_idx = 6
+    assert len(now_pos) == len(next_pos)
+    err = np.zeros_like(now_pos)
+
+    for each_joint in BODY_JOINTS:
+        curr_idx = offset_idx
+        dof = DOF_DEF[each_joint]
+        if dof == 1:
+            offset_idx += 1
+            seg_0 = now_pos[curr_idx:offset_idx]
+            seg_1 = next_pos[curr_idx:offset_idx]
+            err[curr_idx:offset_idx] = (seg_1 - seg_0) * 1.0
+        elif dof == 3:
+            offset_idx += 4
+            seg_0 = now_pos[curr_idx:offset_idx]
+            seg_1 = next_pos[curr_idx:offset_idx]
+            err[curr_idx:offset_idx] = calc_angular_vel_from_frames(seg_0, seg_1, 1.0)
+    return err
+
+
+def align_pos(pos_input):
+    offset_map = {}
+    offset_idx = 0
+    for each_joint in BODY_JOINTS_IN_DP_ORDER:
+        offset_map[each_joint] = offset_idx
+        if DOF_DEF[each_joint] == 1:
+            offset_idx += 1
+        elif DOF_DEF[each_joint] == 3:
+            offset_idx += 4
+        else:
+            raise NotImplementedError
+    pos_output = []
+    for each_joint in BODY_JOINTS:
+        offset_idx = offset_map[each_joint]
+        dof = DOF_DEF[each_joint]
+        tmp_seg = []
+        if dof == 1:
+            tmp_seg = [pos_input[offset_idx]]
+        elif dof == 3:
+            tmp_seg = pos_input[offset_idx:offset_idx+dof+1]
+        else:
+            raise NotImplementedError
+        pos_output += tmp_seg
+
+    return pos_output
+
+def calc_vel_err(now_vel, next_vel):
+    return next_vel - now_vel
+
 if __name__ == "__main__":
-    render_from_torques()
-    # render_from_pos()
+    # render_from_torques()
+    render_from_pos()
     # render_from_vel()
