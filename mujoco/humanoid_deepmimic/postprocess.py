@@ -18,7 +18,10 @@ class PostProcessing(object):
             "left_shoulder": [400, 40], "left_elbow": [300, 30], "right_hip": [500, 50], "right_knee": [500, 50], 
             "right_ankle": [400, 40], "left_hip": [500, 50], "left_knee": [500, 50], "left_ankle": [400, 40]}
 
-    def __init__(self):
+    def __init__(self, env, dt):
+        self.env = env
+        self.dt = dt
+
         self.offset_map = {}
         offset_idx = 0
         for each_joint in self.BODY_JOINTS_IN_DP_ORDER:
@@ -38,19 +41,21 @@ class PostProcessing(object):
         self.kp = np.array(kp)
         self.kd = np.array(kd)
 
+    def get_curr_obs(self):
+        # TODO
+        pos = []
+        vel = []
+        return pos, vel
+
     def action2torque(self, action):
-        pos_err = calc_pos_err_test()
-        vel_err = calc_vel_err_test()
-        while True:
-            for (p_err, v_err) in zip(pos_err, vel_err):
-                torque = kp * p_err[6:] + kd * v_err[6:]
-                # torque = kp * p_err[6:]
-                print(torque)
-                sim.data.ctrl[:] = torque[:]
-                # sim.forward()
-                sim.step()
-                viewer.render()
-        pass
+        curr_pos, curr_vel = self.get_curr_obs()
+        assert len(curr_pos) == len(action)
+
+        p_err = self.calc_pos_err(curr_pos, action)
+        vel = p_err * 1.0 / self.dt
+        v_err = self.calc_vel_err(curr_vel, vel)
+        torque = self.kp * p_err + self.kd * v_err
+        return torque
 
     def align_rotation(self, rot):
         q_input = Quaternion(rot[0], rot[1], rot[2], rot[3])
@@ -124,3 +129,6 @@ class PostProcessing(object):
             pos_output += tmp_seg
 
         return pos_output
+        
+    def calc_vel_err(self, now_vel, next_vel):
+        return next_vel - now_vel
