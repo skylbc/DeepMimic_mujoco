@@ -9,12 +9,13 @@ from mocap_util import BODY_JOINTS, BODY_JOINTS_IN_DP_ORDER, DOF_DEF
 
 class MocapDM(object):
     def __init__(self):
-        pass
+        self.num_joints = len(BODY_JOINTS)
+        self.pos_dim = 3
+        self.rot_dim = 4
 
     def load_mocap(self, filepath):
         self.read_raw_data(filepath)
         self.convert_raw_data()
-        return self.mocap_data
 
     def read_raw_data(self, filepath):
         motions = None
@@ -26,7 +27,7 @@ class MocapDM(object):
             data = json.load(fin)
             motions = np.array(data["Frames"])
             m_shape = np.shape(motions)
-            self.mocap_data = np.full(m_shape, np.nan)
+            self.data = np.full(m_shape, np.nan)
 
             total_time = 0.0
             for each_frame in motions:
@@ -34,6 +35,7 @@ class MocapDM(object):
                 each_frame[0] = total_time
                 total_time += duration
                 durations.append(duration)
+                self.dt = duration
 
             for each_frame in motions:
                 curr_idx = 1
@@ -63,17 +65,17 @@ class MocapDM(object):
             # time duration
             init_idx = 0
             offset_idx = 1
-            self.mocap_data[k, init_idx:offset_idx] = dura
+            self.data[k, init_idx:offset_idx] = dura
 
             # root pos
             init_idx = offset_idx
             offset_idx += 3
-            self.mocap_data[k, init_idx:offset_idx] = np.array(state['root_pos'])
+            self.data[k, init_idx:offset_idx] = np.array(state['root_pos'])
 
             # root rot
             init_idx = offset_idx
             offset_idx += 4
-            self.mocap_data[k, init_idx:offset_idx] = np.array(state['root_rot'])
+            self.data[k, init_idx:offset_idx] = np.array(state['root_rot'])
 
             for each_joint in BODY_JOINTS:
                 init_idx = offset_idx
@@ -81,11 +83,11 @@ class MocapDM(object):
                 if DOF_DEF[each_joint] == 1:
                     assert 1 == len(tmp_val)
                     offset_idx += 1
-                    self.mocap_data[k, init_idx:offset_idx] = state[each_joint]
+                    self.data[k, init_idx:offset_idx] = state[each_joint]
                 elif DOF_DEF[each_joint] == 3:
                     assert 4 == len(tmp_val)
                     offset_idx += 4
-                    self.mocap_data[k, init_idx:offset_idx] = state[each_joint]
+                    self.data[k, init_idx:offset_idx] = state[each_joint]
 
     def play(self, filepath):
         from mujoco_py import load_model_from_xml, MjSim, MjViewer
@@ -106,8 +108,8 @@ class MocapDM(object):
         phase_offset = np.array([0.0, 0.0, 0.0])
 
         while True:
-            for k in range(len(self.mocap_data)):
-                tmp_val = self.mocap_data[k, 1:]
+            for k in range(len(self.data)):
+                tmp_val = self.data[k, 1:]
                 sim_state = sim.get_state()
                 sim_state.qpos[:] = tmp_val[:]
                 sim_state.qpos[:3] +=  phase_offset[:]
