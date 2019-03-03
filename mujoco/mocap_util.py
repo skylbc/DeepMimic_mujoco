@@ -13,6 +13,11 @@ DOF_DEF = {"chest": 3, "neck": 3, "right_shoulder": 3, "right_elbow": 1,
         "left_shoulder": 3, "left_elbow": 1, "right_hip": 3, "right_knee": 1, 
         "right_ankle": 3, "left_hip": 3, "left_knee": 1, "left_ankle": 3}
 
+BODY_DEFS = ["root", "chest", "neck", "right_hip", "right_knee", 
+             "right_ankle", "right_shoulder", "right_elbow", "right_wrist", "left_hip", 
+             "left_knee", "left_ankle", "left_shoulder", "left_elbow", "left_wrist"]
+
+
 PARAMS_KP_KD = {"chest": [1000, 100], "neck": [100, 10], "right_shoulder": [400, 40], "right_elbow": [300, 30], 
         "left_shoulder": [400, 40], "left_elbow": [300, 30], "right_hip": [500, 50], "right_knee": [500, 50], 
         "right_ankle": [400, 40], "left_hip": [500, 50], "left_knee": [500, 50], "left_ankle": [400, 40]}
@@ -49,6 +54,6 @@ def calc_angular_vel_from_quaternion(orien_0, orien_1, dt):
     angle = q_diff.angle
     
     tmp_vel = (angle * 1.0)/dt * axis
-    vel_angular = np.array([tmp_vel[0], tmp_vel[1], tmp_vel[2]])
+    vel_angular = [tmp_vel[0], tmp_vel[1], tmp_vel[2]]
 
     return vel_angular

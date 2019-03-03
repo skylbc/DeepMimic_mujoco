@@ -4,12 +4,12 @@ import json
 import copy
 import numpy as np
 from pyquaternion import Quaternion
-from mocap_util import align_position, align_rotation
-from mocap_util import BODY_JOINTS, BODY_JOINTS_IN_DP_ORDER, DOF_DEF
+from mujoco.mocap_util import align_position, align_rotation
+from mujoco.mocap_util import BODY_JOINTS, BODY_JOINTS_IN_DP_ORDER, DOF_DEF, BODY_DEFS
 
 class MocapDM(object):
     def __init__(self):
-        self.num_joints = len(BODY_JOINTS)
+        self.num_bodies = len(BODY_DEFS)
         self.pos_dim = 3
         self.rot_dim = 4
 
@@ -30,12 +30,12 @@ class MocapDM(object):
             self.data = np.full(m_shape, np.nan)
 
             total_time = 0.0
+            self.dt = motions[0][0]
             for each_frame in motions:
                 duration = each_frame[0]
                 each_frame[0] = total_time
                 total_time += duration
                 durations.append(duration)
-                self.dt = duration
 
             for each_frame in motions:
                 curr_idx = 1
@@ -89,18 +89,18 @@ class MocapDM(object):
                     offset_idx += 4
                     self.data[k, init_idx:offset_idx] = state[each_joint]
 
-    def play(self, filepath):
+    def play(self, mocap_filepath):
         from mujoco_py import load_model_from_xml, MjSim, MjViewer
 
-        file_path = 'humanoid_deepmimic/envs/asset/humanoid_deepmimic.xml'
-        with open(file_path) as fin:
+        xmlpath = '/home/mingfei/Documents/DeepMimic/mujoco/humanoid_deepmimic/envs/asset/humanoid_deepmimic.xml'
+        with open(xmlpath) as fin:
             MODEL_XML = fin.read()
 
         model = load_model_from_xml(MODEL_XML)
         sim = MjSim(model)
         viewer = MjViewer(sim)
 
-        self.read_raw_data(filepath)
+        self.read_raw_data(mocap_filepath)
         self.convert_raw_data()
 
         from time import sleep
@@ -123,4 +123,4 @@ class MocapDM(object):
 
 if __name__ == "__main__":
     test = MocapDM()
-    test.play("motions/humanoid3d_crawl.txt")
+    test.play("/home/mingfei/Documents/DeepMimic/mujoco/motions/humanoid3d_crawl.txt")

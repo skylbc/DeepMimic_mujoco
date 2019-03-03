@@ -1,33 +1,35 @@
 import numpy as np
 from pyquaternion import Quaternion
 
-from mocap_util import calc_angular_vel_from_quaternion
-from mocap_util import BODY_JOINTS, BODY_JOINTS_IN_DP_ORDER
-from mocap_util import DOF_DEF, PARAMS_KP_KD, PARAMS_KP_KD
+from mujoco.mocap_util import calc_angular_vel_from_quaternion
+from mujoco.mocap_util import BODY_JOINTS, BODY_JOINTS_IN_DP_ORDER
+from mujoco.mocap_util import DOF_DEF, PARAMS_KP_KD, PARAMS_KP_KD, BODY_DEFS
 
 class MujocoInterface(object):
     def __init__(self):
-        all_mujoco_joints = ["worldbody", "root", "joint_waist", "chest", "neck", 
+        all_mujoco_body = ["worldbody", "root", "joint_waist", "chest", "neck", 
                              "joint_neck", "right_clavicle", "right_shoulder", "joint_right_shoulder", "right_elbow", 
                              "joint_right_elbow", "right_wrist", "left_clavicle", "left_shoulder", "joint_left_shoulder", 
                              "left_elbow", "joint_left_elbow", "left_wrist", "right_hip", "joint_right_hip", 
                              "right_knee", "joint_right_knee", "right_ankle", "joint_right_ankle", "left_hip", 
                              "joint_left_hip", "left_knee", "joint_left_knee", "left_ankle", "joint_left_ankle"]
 
-        valid_mujoco_joints = ["root", "chest", "neck", "right_shoulder", "right_elbow",
+        valid_mujoco_body = ["root", "chest", "neck", "right_shoulder", "right_elbow",
                                "right_wrist", "left_shoulder", "left_elbow", "left_wrist", "right_hip",
                                "right_knee", "right_ankle", "left_hip", "left_knee", "left_ankle"]
 
-        valid_joints_in_dp_order = ["root"] + BODY_JOINTS_IN_DP_ORDER
- 
-        self.idx_valid_joint = np.array([a in valid_mujoco_joints for a in all_mujoco_joints])
+        self.idx_valid_joint = np.array([a in valid_mujoco_body for a in all_mujoco_body])
 
-        assert len(valid_joints_in_dp_order) == len(valid_mujoco_joints)
+        assert len(BODY_DEFS) == len(valid_mujoco_body)
+
         perm_idx = []
-        for each_joint in valid_joints_in_dp_order:
-            tmp_idx = valid_mujoco_joints.index(each_joint)
+        for each_body in BODY_DEFS:
+            tmp_idx = valid_mujoco_body.index(each_body)
             perm_idx.append(tmp_idx)
         self.idx_align_perm = perm_idx
+
+        dofs = np.fromiter(DOF_DEF.values(), dtype=np.int16)
+        self.action_size = sum(dofs) + sum(dofs == 3)
 
         self.offset_map_dp2mujoco_pos = {}
         self.offset_map_dp2mujoco_vel = {}
@@ -103,9 +105,9 @@ class MujocoInterface(object):
 
     def calc_pos_err(self, now_pos, next_pos):
         curr_idx = 0
-        offset_idx = 6
+        offset_idx = 0
         assert len(now_pos) == len(next_pos)
-        err = np.full(np.shape(now_pos), np.nan)
+        err = []
 
         for each_joint in BODY_JOINTS:
             curr_idx = offset_idx
@@ -114,13 +116,13 @@ class MujocoInterface(object):
                 offset_idx += 1
                 seg_0 = now_pos[curr_idx:offset_idx]
                 seg_1 = next_pos[curr_idx:offset_idx]
-                err[curr_idx:offset_idx] = (seg_1 - seg_0) * 1.0
+                err += [(seg_1 - seg_0) * 1.0]
             elif dof == 3:
                 offset_idx += 4
                 seg_0 = now_pos[curr_idx:offset_idx]
                 seg_1 = next_pos[curr_idx:offset_idx]
-                err[curr_idx:offset_idx] = calc_angular_vel_from_quaternion(seg_0, seg_1, 1.0)
-        return err
+                err += calc_angular_vel_from_quaternion(seg_0, seg_1, 1.0)
+        return np.array(err)
 
     def align(self, input_val, mode, opt):
         assert opt in ['vel', 'pos']
@@ -149,7 +151,7 @@ class MujocoInterface(object):
             if dof == 1:
                 tmp_seg = [input_val[offset_idx]]
             elif dof == 3:
-                tmp_seg = input_val[offset_idx:offset_idx+this_offset]
+                tmp_seg = input_val[offset_idx:offset_idx+this_offset].tolist()
             else:
                 raise NotImplementedError
             output_val += tmp_seg

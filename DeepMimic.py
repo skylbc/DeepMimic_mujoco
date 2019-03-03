@@ -6,7 +6,8 @@ from OpenGL.GL import *
 from OpenGL.GLUT import *
 from OpenGL.GLU import *
 
-from env.deepmimic_env_mujoco import DeepMimicEnv
+# from env.deepmimic_env_mujoco import DeepMimicEnv
+from mujoco.mujoco_env import DeepMimicEnv
 from learning.rl_world import RLWorld
 from util.arg_parser import ArgParser
 from util.logger import Logger
@@ -114,7 +115,7 @@ def build_world(args, enable_draw, playback_speed=1):
 def main():
     global args
 
-    args = ["--arg_file", "args/kin_char_args.txt"]
+    args = ["--arg_file", "args/run_humanoid3d_crawl_args.txt"]
     reload()
     while True:
         animate()
