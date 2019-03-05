@@ -2,10 +2,6 @@ import numpy as np
 import sys
 import random
 
-from OpenGL.GL import *
-from OpenGL.GLUT import *
-from OpenGL.GLU import *
-
 # from env.deepmimic_env_mujoco import DeepMimicEnv
 from mujoco.mujoco_env import DeepMimicEnv
 from learning.rl_world import RLWorld
@@ -14,19 +10,12 @@ from util.logger import Logger
 import util.mpi_util as MPIUtil
 import util.util as Util
 
-# Dimensions of the window we are drawing into.
-win_width = 800
-win_height = int(win_width * 9.0 / 16.0)
-reshaping = False
-
 # anim
 fps = 60
 update_timestep = 1.0 / fps
-display_anim_time = int(1000 * update_timestep)
 animating = True
 
 playback_speed = 1
-playback_delta = 0.05
 
 # FPS counter
 prev_time = 0

@@ -1,3 +1,4 @@
+import math
 import numpy as np
 from pyquaternion import Quaternion
 
@@ -57,3 +58,26 @@ def calc_angular_vel_from_quaternion(orien_0, orien_1, dt):
     vel_angular = [tmp_vel[0], tmp_vel[1], tmp_vel[2]]
 
     return vel_angular
+# 
+# def xyzrot2quat(xyzrot):
+#     sx, cx = math.sin(xyzrot[0]), math.cos(xyzrot[0])
+#     sy, cy = math.sin(xyzrot[1]), math.cos(xyzrot[1])
+#     sz, cz = math.sin(xyzrot[2]), math.cos(xyzrot[2])
+# 
+#     R_x = np.array([[1.0, 0.0, 0.0],
+#                     [0.0, cx, -sx],
+#                     [0.0, sx, cx]])
+# 
+#     R_y = np.array([[cy, 0.0, sy],
+#                     [0.0, 1, 0.0],
+#                     [-sy, 0.0, cy]])
+# 
+#     R_z = np.array([[cz, -sz, 0.0],
+#                     [sz, cz, 0.0],
+#                     [0.0, 0.0, 1.0]])
+#     
+#     rot = np.matmul( np.matmul(R_x, R_y), R_z)
+# 
+#     quat = Quaternion(matrix=rot)
+# 
+#     return  quat.elements

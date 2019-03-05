@@ -81,6 +81,19 @@ class MujocoInterface(object):
 
         return pos, vel
 
+    def expant_raw_pos(self, pos_input):
+        pos_output = []
+        pos_output += pos_input[:7].tolist()
+        curr_offset = 7
+        for each_joint in BODY_JOINTS:
+            if DOF_DEF[each_joint] == 1:
+                pos_output += [pos_input[curr_offset]]
+                curr_offset += 1
+            elif DOF_DEF[each_joint] == 3:
+                pos_output += xyzrot2quat(pos_input[curr_offset:curr_offset+3])
+                curr_offset += 3
+        return np.array(pos_output)
+
     def action2torque(self, action): # PD controller
         action = self.align(action, mode='dp2mujoco', opt='pos')
 
@@ -114,8 +127,8 @@ class MujocoInterface(object):
             dof = DOF_DEF[each_joint]
             if dof == 1:
                 offset_idx += 1
-                seg_0 = now_pos[curr_idx:offset_idx]
-                seg_1 = next_pos[curr_idx:offset_idx]
+                seg_0 = now_pos[curr_idx]
+                seg_1 = next_pos[curr_idx]
                 err += [(seg_1 - seg_0) * 1.0]
             elif dof == 3:
                 offset_idx += 4
@@ -127,19 +140,27 @@ class MujocoInterface(object):
     def align(self, input_val, mode, opt):
         assert opt in ['vel', 'pos']
         assert mode in ['dp2mujoco', 'mujoco2dp']
-        if opt == 'vel':
-            this_map = self.offset_map_dp2mujoco_vel
-            this_offset = 3
-        elif opt == 'pos':
-            this_map = self.offset_map_dp2mujoco_pos
-            this_offset = 4
-        else:
-            raise NotImplementedError
 
         if mode == 'dp2mujoco':
             this_joints = BODY_JOINTS
+            if opt == 'vel':
+                this_map = self.offset_map_dp2mujoco_vel
+                this_offset = 3
+            elif opt == 'pos':
+                this_map = self.offset_map_dp2mujoco_pos
+                this_offset = 4
+            else:
+                raise NotImplementedError
         elif mode == 'mujoco2dp':
             this_joints = BODY_JOINTS_IN_DP_ORDER
+            if opt == 'vel':
+                this_map = self.offset_map_mujoco2dp_vel
+                this_offset = 3
+            elif opt == 'pos':
+                this_map = self.offset_map_mujoco2dp_pos
+                this_offset = 4
+            else:
+                raise NotImplementedError
         else:
             raise NotImplementedError
 

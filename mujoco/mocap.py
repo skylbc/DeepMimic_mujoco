@@ -92,7 +92,7 @@ class MocapDM(object):
     def play(self, mocap_filepath):
         from mujoco_py import load_model_from_xml, MjSim, MjViewer
 
-        xmlpath = '/home/mingfei/Documents/DeepMimic/mujoco/humanoid_deepmimic/envs/asset/humanoid_deepmimic.xml'
+        xmlpath = '/home/mingfei/Documents/DeepMimic/mujoco/humanoid_deepmimic/envs/asset/dp_env_v1.xml'
         with open(xmlpath) as fin:
             MODEL_XML = fin.read()
 

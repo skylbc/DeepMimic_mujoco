@@ -6,7 +6,7 @@ from mujoco.mujoco_interface import MujocoInterface
 
 class DeepMimicEnv(object):
     def __init__(self):
-        file_path = '/home/mingfei/Documents/DeepMimic/mujoco/humanoid_deepmimic/envs/asset/humanoid_deepmimic.xml'
+        file_path = '/home/mingfei/Documents/DeepMimic/mujoco/humanoid_deepmimic/envs/asset/dp_env_v1.xml'
         with open(file_path, 'r') as fin:
             MODEL_XML = fin.read()
 
@@ -107,8 +107,10 @@ class DeepMimicEnv(object):
         curr_idx = 0
         state[curr_idx] = 0
         curr_idx += 1
+
         state[curr_idx] = root_xpos[1]
         curr_idx += 1
+
         for i in range(self.mocap.num_bodies):
             state[curr_idx:curr_idx+3] = valid_xpos[i] - root_xpos
             curr_idx += 3
