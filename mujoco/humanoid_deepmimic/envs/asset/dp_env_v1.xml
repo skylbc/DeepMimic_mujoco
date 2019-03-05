@@ -1,10 +1,10 @@
 <mujoco model="humanoid">
     <compiler angle="degree" inertiafromgeom="true"/>
     <default>
-        <joint limited="true" armature="0" damping="0"/>
+        <joint limited="false" armature="0" damping="0"/>
         <geom conaffinity="1" condim="1" contype="1" margin="0.001" material="geom" rgba="0.8 0.6 .4 1"/>
         <site material="geom" rgba="0.8 0.6 .4 1"/>
-        <motor ctrllimited="true" ctrlrange="-.3 .3"/>
+        <motor ctrllimited="true" ctrlrange="-20.0 20.0"/>
     </default>
     <option integrator="RK4" iterations="50" solver="PGS" timestep="0.003">
     </option>
@@ -27,7 +27,7 @@
             <geom name="root" pos="0 0 0.07" size=".09" type="sphere"/>
             <joint limited="false" name="root" pos="0 0 0" stiffness="0" type="free"/>
             <site name="joint_waist" pos="0 0 0.205" size="0.07" type="sphere"/>
-            <geom name="joint_front_x" rgba='1 0 0 1' pos="0.08 0 0.205" size="0.01 0.01 0.01" type="box"/>
+            <site name="joint_front_x" rgba='1 0 0 1' pos="0.08 0 0.205" size="0.01 0.01 0.01" type="box"/>
             <body name="chest" pos="0 0 0.236151">
                 <geom name="chest" pos="0 0 0.12" size=".11" type="sphere"/>
                 <joint name="chest" pos="0 0 0" range="0 68.75" type="ball"/>
@@ -101,21 +101,26 @@
         <motor gear="1 0 0" joint="neck" name="neck_x"/>
         <motor gear="0 1 0" joint="neck" name="neck_y"/>
         <motor gear="0 0 1" joint="neck" name="neck_z"/>
+
         <motor gear="1 0 0" joint="right_shoulder" name="right_shoulder_x"/>
         <motor gear="0 1 0" joint="right_shoulder" name="right_shoulder_y"/>
         <motor gear="0 0 1" joint="right_shoulder" name="right_shoulder_z"/>
         <motor gear="1" joint="right_elbow" name="right_elbow"/>
+
         <motor gear="1 0 0" joint="left_shoulder" name="left_shoulder_x"/>
         <motor gear="0 1 0" joint="left_shoulder" name="left_shoulder_y"/>
         <motor gear="0 0 1" joint="left_shoulder" name="left_shoulder_z"/>
         <motor gear="1" joint="left_elbow" name="left_elbow"/>
+
         <motor gear="1 0 0" joint="right_hip" name="right_hip_x"/>
         <motor gear="0 1 0" joint="right_hip" name="right_hip_y"/>
         <motor gear="0 0 1" joint="right_hip" name="right_hip_z"/>
+
         <motor gear="1" joint="right_knee" name="right_knee"/>
         <motor gear="1 0 0" joint="right_ankle" name="right_ankle_x"/>
         <motor gear="0 1 0" joint="right_ankle" name="right_ankle_y"/>
         <motor gear="0 0 1" joint="right_ankle" name="right_ankle_z"/>
+
         <motor gear="1 0 0" joint="left_hip" name="left_hip_x"/>
         <motor gear="0 1 0" joint="left_hip" name="left_hip_y"/>
         <motor gear="0 0 1" joint="left_hip" name="left_hip_z"/>
