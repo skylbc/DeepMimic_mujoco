@@ -1,12 +1,12 @@
 <mujoco model="humanoid">
     <compiler angle="degree" inertiafromgeom="true"/>
     <default>
-        <joint limited="false" armature="0" damping="0"/>
+        <joint limited="true" armature="0" damping="0"/>
         <geom conaffinity="1" condim="1" contype="1" margin="0.001" material="geom" rgba="0.8 0.6 .4 1"/>
         <site material="geom" rgba="0.8 0.6 .4 1"/>
         <motor ctrllimited="true" ctrlrange="-20.0 20.0"/>
     </default>
-    <option integrator="RK4" iterations="50" solver="PGS" timestep="0.003">
+    <option integrator="RK4" iterations="50" solver="PGS" timestep="0.002">
     </option>
     <size nkey="5" nuser_geom="1"/>
     <visual>

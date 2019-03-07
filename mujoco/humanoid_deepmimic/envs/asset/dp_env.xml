@@ -25,7 +25,9 @@
         <body name="root" pos="0 0 1">
             <camera name="track" mode="trackcom" pos="0 -4 0.7" xyaxes="1 0 0 0 0 1"/>
             <geom name="root" pos="0 0 0.07" size=".09" type="sphere"/>
+            <!--
             <joint limited="false" name="root" pos="0 0 0" stiffness="0" type="free"/>
+            -->
             <site name="joint_waist" pos="0 0 0.205" size="0.07" type="sphere"/>
             <geom name="joint_front_x" rgba='1 0 0 1' pos="0.08 0 0.205" size="0.01 0.01 0.01" type="box"/>
             <body name="chest" pos="0 0 0.236151">
