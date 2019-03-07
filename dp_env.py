@@ -10,11 +10,31 @@ from gym import utils
 # TODO: load mocap data; calc rewards
 # TODO: early stop
 
+def mass_center(model, sim):
+    mass = np.expand_dims(model.body_mass, 1)
+    xpos = sim.data.xipos
+    return (np.sum(mass * xpos, 0) / np.sum(mass))[0]
+
 class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def __init__(self):
         file_path = '/home/mingfei/Documents/DeepMimic/mujoco/humanoid_deepmimic/envs/asset/dp_env_v1.xml'
         mujoco_env.MujocoEnv.__init__(self, file_path, 30)
         utils.EzPickle.__init__(self)
+        self.mocap = MocapDM()
+        self.interface = MujocoInterface()
+
+        self.weight_pose = 0.5
+        self.weight_vel = 0.05
+        self.weight_end_eff = 0.15
+        self.weight_root = 0.2
+        self.weight_com = 0.1
+
+        self.scale_pose = 2.0
+        self.scale_vel = 0.1
+        self.scale_end_eff = 40.0
+        self.scale_root = 5.0
+        self.scale_com = 10.0
+        self.scale_err = 1.0
 
     def _get_obs(self):
         position = self.sim.data.qpos.flat.copy()
@@ -22,7 +42,24 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         position = position[2:] # ignore x and y
         return np.concatenate((position, velocity))
 
+    def get_joint_configs(self):
+        data = self.sim.data
+        return data.qpos[:]
+
+    def load_mocap(self, filepath):
+        self.mocap.load_mocap(filepath)
+        self.dt = self.mocap.dt
+
     def calc_reward(self):
+        assert len(self.mocap.data) != 0
+        curr_time = env.get_time()
+        idx_mocap = curr_time//self.dt
+
+        target_mocap = self.mocap.data[idx_mocap, 1:]
+        curr_pos = self.get_joint_configs()
+
+        err_pos = self.interface.calc_pos_err(curr_pos, target_mocap)
+
         return 0.0
 
     def step(self, action):
