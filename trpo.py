@@ -31,7 +31,6 @@ def traj_segment_generator(pi, env, horizon, stochastic):
     t = 0
     ac = env.action_space.sample()
     new = True
-    rew = 0.0
     true_rew = 0.0
     ob = env.reset()
 

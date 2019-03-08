@@ -29,3 +29,5 @@ Backup/
 data/intermediate/
 
 DeepMimicCore/DeepMimicCore.py
+log_trpo_mujoco
+checkpoint
