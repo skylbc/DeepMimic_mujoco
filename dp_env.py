@@ -5,6 +5,7 @@ import math
 from mujoco.mocap import MocapDM
 from mujoco.mujoco_interface import MujocoInterface
 from mujoco.mocap_util import JOINT_WEIGHT
+from mujoco_py import load_model_from_xml, MjSim, MjViewer
 
 from gym.envs.mujoco import mujoco_env
 from gym import utils
@@ -58,6 +59,9 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def load_mocap(self, filepath):
         self.mocap.load_mocap(filepath)
         self.dt = self.mocap.dt
+        xmlpath = '/home/mingfei/Documents/DeepMimic/mujoco/humanoid_deepmimic/envs/asset/dp_env_v1.xml'
+        with open(xmlpath) as fin:
+            MODEL_XML = fin.read()
 
     def calc_reward(self):
         assert len(self.mocap.data) != 0
@@ -72,9 +76,9 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         # target_mocap = self.mocap.data[idx_mocap, 1:]
 
         target_mocap = self.mocap.data[self.idx_mocap%self.mocap_data_len, 1:]
+        self.curr_frame = target_mocap[:]
         self.idx_mocap += 1
 
-        target_mocap[7:] = self.interface.convert(target_mocap[7:], mode='dp2mujoco', opt='pos')
         curr_configs = self.get_joint_configs()
 
         err_pose = self.interface.calc_pos_err(curr_configs, target_mocap)

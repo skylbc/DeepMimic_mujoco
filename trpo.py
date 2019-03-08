@@ -10,6 +10,7 @@ import utils.tf_util as U
 import numpy as np
 
 from cg import cg
+from play_mocap import PlayMocap
 from utils.mujoco_dset import Mujoco_Dset
 from utils.misc_util import set_global_seeds, zipsame, boolean_flag
 from utils.math_util import explained_variance
@@ -21,11 +22,11 @@ from mpi_adam import MpiAdam
 from statistics import stats
 from mlp_policy_trpo import MlpPolicy
 
-# global flag_render
-# flag_render = False
+global flag_render
+flag_render = False
 
-def traj_segment_generator(pi, env, horizon, stochastic):
-    # global flag_render
+def traj_segment_generator(pi, env, mocap_player, horizon, stochastic):
+    global flag_render
 
     # Initialize state variables
     t = 0
@@ -68,7 +69,8 @@ def traj_segment_generator(pi, env, horizon, stochastic):
         ob, true_rew, new, _ = env.step(ac)
 
         # if flag_render:
-        #     env.render()
+        #     mocap_player.show_frame(env.env.curr_frame)
+
         rews[i] = true_rew
 
         cur_ep_ret += true_rew
@@ -191,7 +193,8 @@ def learn(env, policy_func, rank, *,
 
     # Prepare for rollouts
     # ----------------------------------------
-    seg_gen = traj_segment_generator(pi, env, timesteps_per_batch, stochastic=True)
+    mocap_player = PlayMocap()
+    seg_gen = traj_segment_generator(pi, env, mocap_player, timesteps_per_batch, stochastic=True)
 
     episodes_so_far = 0
     timesteps_so_far = 0
@@ -224,7 +227,7 @@ def learn(env, policy_func, rank, *,
         logger.log("********** Iteration %i ************" % iters_so_far)
 
         # global flag_render
-        # if iters_so_far > 0 and iters_so_far % 10 ==0:
+        # if iters_so_far > 0 and iters_so_far % 1 ==0:
         #     flag_render = True
         # else:
         #     flag_render = False
