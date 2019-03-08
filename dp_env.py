@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import numpy as np
 import math
+from os import getcwd
 
 from mujoco.mocap import MocapDM
 from mujoco.mujoco_interface import MujocoInterface
@@ -20,12 +21,13 @@ def mass_center(model, sim):
 
 class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def __init__(self):
-        file_path = '/home/mingfei/Documents/DeepMimic/mujoco/humanoid_deepmimic/envs/asset/dp_env_v1.xml'
+        self.curr_path = getcwd()
+        file_path = self.curr_path + '/mujoco/humanoid_deepmimic/envs/asset/dp_env_v1.xml'
 
         self.mocap = MocapDM()
         self.interface = MujocoInterface()
 
-        self.mocap.load_mocap("/home/mingfei/Documents/DeepMimic/mujoco/motions/humanoid3d_crawl.txt")
+        self.mocap.load_mocap(self.curr_path + "/mujoco/motions/humanoid3d_crawl.txt")
 
         self.weight_pose = 0.5
         self.weight_vel = 0.05
@@ -59,7 +61,7 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def load_mocap(self, filepath):
         self.mocap.load_mocap(filepath)
         self.dt = self.mocap.dt
-        xmlpath = '/home/mingfei/Documents/DeepMimic/mujoco/humanoid_deepmimic/envs/asset/dp_env_v1.xml'
+        xmlpath = self.curr_path + '/mujoco/humanoid_deepmimic/envs/asset/dp_env_v1.xml'
         with open(xmlpath) as fin:
             MODEL_XML = fin.read()
 
