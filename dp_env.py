@@ -20,10 +20,11 @@ def mass_center(model, sim):
 class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def __init__(self):
         file_path = '/home/mingfei/Documents/DeepMimic/mujoco/humanoid_deepmimic/envs/asset/dp_env_v1.xml'
-        mujoco_env.MujocoEnv.__init__(self, file_path, 30)
-        utils.EzPickle.__init__(self)
+
         self.mocap = MocapDM()
         self.interface = MujocoInterface()
+
+        self.mocap.load_mocap("/home/mingfei/Documents/DeepMimic/mujoco/motions/humanoid3d_crawl.txt")
 
         self.weight_pose = 0.5
         self.weight_vel = 0.05
@@ -37,6 +38,11 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.scale_root = 5.0
         self.scale_com = 10.0
         self.scale_err = 1.0
+
+        self.mocap_data_len = len(self.mocap.data)
+
+        mujoco_env.MujocoEnv.__init__(self, file_path, 30)
+        utils.EzPickle.__init__(self)
 
     def _get_obs(self):
         position = self.sim.data.qpos.flat.copy()
@@ -60,11 +66,11 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         err_root = 0.0
         err_com = 0.0
 
-        curr_time = env.get_time()
-        idx_mocap = curr_time // self.dt
-
+        curr_time = self.get_time()
+        idx_mocap = int(curr_time // self.dt) % self.mocap_data_len
         target_mocap = self.mocap.data[idx_mocap, 1:]
-        target_mocap[:7] = self.interface.convert(target_mocap[:7], mode='dp2mujoco', opt='pos')
+
+        target_mocap[7:] = self.interface.convert(target_mocap[7:], mode='dp2mujoco', opt='pos')
         curr_configs = self.get_joint_configs()
 
         err_pose = self.interface.calc_pos_err(curr_configs, target_mocap)
@@ -83,9 +89,11 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         reward_root     = math.exp(-self.scale_err * self.scale_root * err_root)
         reward_com      = math.exp(-self.scale_err * self.scale_com * err_com)
 
-        reward = self.weight_pose * reward_pose + self.weight_vel * reward_vel + \
-             self.weight_end_eff * reward_end_eff + self.weight_root * reward_root + \
-                 self.weight_com * reward_com
+        # reward = self.weight_pose * reward_pose + self.weight_vel * reward_vel + \
+        #      self.weight_end_eff * reward_end_eff + self.weight_root * reward_root + \
+        #          self.weight_com * reward_com
+
+        reward = reward_pose
 
         return reward
 
@@ -125,11 +133,14 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
 if __name__ == "__main__":
     env = DPEnv()
+
+    # env.load_mocap("/home/mingfei/Documents/DeepMimic/mujoco/motions/humanoid3d_crawl.txt")
     action_size = env.action_space.shape[0]
     ac = np.zeros(action_size)
     print(action_size)
     while True:
         # ac[0] = (np.random.rand() - 0.5)*2
         ac[2] = 1
-        env.step(ac)
+        ob, rew, _, _ = env.step(ac)
+        print(rew)
         env.render()

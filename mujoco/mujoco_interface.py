@@ -152,12 +152,12 @@ class MujocoInterface(object):
                 offset_idx += 1
                 seg_0 = now_pos[curr_idx]
                 seg_1 = next_pos[curr_idx]
-                err += (seg_1 - seg_0) * 1.0 * weight
+                err += abs(seg_1 - seg_0) * 1.0 * weight
             elif dof == 3:
                 offset_idx += 4
                 seg_0 = now_pos[curr_idx:offset_idx]
                 seg_1 = next_pos[curr_idx:offset_idx]
-                err += calc_diff_from_quaternion(seg_0, seg_1) * 1.0 * weight
+                err += abs(calc_diff_from_quaternion(seg_0, seg_1)) * 1.0 * weight
         return err
 
     def calc_vel_err(self, now_pos, next_pos, dt): # including root joint
