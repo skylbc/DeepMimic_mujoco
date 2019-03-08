@@ -31,19 +31,15 @@ def traj_segment_generator(pi, env, horizon, stochastic):
     t = 0
     ac = env.action_space.sample()
     new = True
-    true_rew = 0.0
     ob = env.reset()
 
     cur_ep_ret = 0
     cur_ep_len = 0
-    cur_ep_true_ret = 0
-    ep_true_rets = []
     ep_rets = []
     ep_lens = []
 
     # Initialize history arrays
     obs = np.array([ob for _ in range(horizon)])
-    true_rews = np.zeros(horizon, 'float32')
     rews = np.zeros(horizon, 'float32')
     vpreds = np.zeros(horizon, 'float32')
     news = np.zeros(horizon, 'int32')
@@ -53,18 +49,14 @@ def traj_segment_generator(pi, env, horizon, stochastic):
     while True:
         prevac = ac
         ac, vpred = pi.act(stochastic, ob)
-        # Slight weirdness here because we need value function at time T
-        # before returning segment [0, T-1] so we get the correct
-        # terminal value
         if t > 0 and t % horizon == 0:
             yield {"ob": obs, "rew": rews, "vpred": vpreds, "new": news,
                    "ac": acs, "prevac": prevacs, "nextvpred": vpred * (1 - new),
-                   "ep_rets": ep_rets, "ep_lens": ep_lens, "ep_true_rets": ep_true_rets}
+                   "ep_rets": ep_rets, "ep_lens": ep_lens}
             _, vpred = pi.act(stochastic, ob)
             # Be careful!!! if you change the downstream algorithm to aggregate
             # several of these batches, then be sure to do a deepcopy
             ep_rets = []
-            ep_true_rets = []
             ep_lens = []
         i = t % horizon
         obs[i] = ob
@@ -78,17 +70,13 @@ def traj_segment_generator(pi, env, horizon, stochastic):
         # if flag_render:
         #     env.render()
         rews[i] = true_rew
-        true_rews[i] = true_rew
 
         cur_ep_ret += true_rew
-        cur_ep_true_ret += true_rew
         cur_ep_len += 1
         if new:
             ep_rets.append(cur_ep_ret)
-            ep_true_rets.append(cur_ep_true_ret)
             ep_lens.append(cur_ep_len)
             cur_ep_ret = 0
-            cur_ep_true_ret = 0
             cur_ep_len = 0
             ob = env.reset()
         t += 1
@@ -211,12 +199,11 @@ def learn(env, policy_func, rank, *,
     tstart = time.time()
     lenbuffer = deque(maxlen=40)  # rolling buffer for episode lengths
     rewbuffer = deque(maxlen=40)  # rolling buffer for episode rewards
-    true_rewbuffer = deque(maxlen=40)
 
     assert sum([max_iters > 0, max_timesteps > 0, max_episodes > 0]) == 1
 
     g_loss_stats = stats(loss_names)
-    ep_stats = stats(["True_rewards", "Rewards", "Episode_length"])
+    ep_stats = stats(["Rewards", "Episode_length"])
 
     while True:
         if callback: callback(locals(), globals())
@@ -311,21 +298,18 @@ def learn(env, policy_func, rank, *,
                         g = allmean(compute_vflossandgrad(mbob, mbret))
                         vfadam.update(g, vf_stepsize)
 
-        g_losses = meanlosses
         for (lossname, lossval) in zip(loss_names, meanlosses):
             logger.record_tabular(lossname, lossval)
         logger.record_tabular("ev_tdlam_before", explained_variance(vpredbefore, tdlamret))
 
-        lrlocal = (seg["ep_lens"], seg["ep_rets"], seg["ep_true_rets"])  # local values
+        lrlocal = (seg["ep_lens"], seg["ep_rets"])  # local values
         listoflrpairs = MPI.COMM_WORLD.allgather(lrlocal)  # list of tuples
-        lens, rews, true_rets = map(flatten_lists, zip(*listoflrpairs))
-        true_rewbuffer.extend(true_rets)
+        lens, rews = map(flatten_lists, zip(*listoflrpairs))
         lenbuffer.extend(lens)
         rewbuffer.extend(rews)
 
         logger.record_tabular("EpLenMean", np.mean(lenbuffer))
         logger.record_tabular("EpRewMean", np.mean(rewbuffer))
-        logger.record_tabular("EpTrueRewMean", np.mean(true_rewbuffer))
         logger.record_tabular("EpThisIter", len(lens))
         episodes_so_far += len(lens)
         timesteps_so_far += sum(lens)
@@ -372,9 +356,7 @@ def argsparser():
 
 
 def get_task_name(args):
-    task_name = args.algo + "_gail_stochastic."
-    if args.traj_limitation != np.inf:
-        task_name += "transition_limitation_%d." % args.traj_limitation
+    task_name = args.algo + "_stochastic."
     task_name += args.env_id.split("-")[0]
     task_name = task_name + ".g_step_" + str(args.g_step) + \
         ".policy_entcoeff_" + str(args.policy_entcoeff)
@@ -383,7 +365,7 @@ def get_task_name(args):
 
 def get_task_short_name(args):
     task_name = args.env_id.split("-")[0] + '/'
-    task_name += "GAIL-"
+    task_name += "trpo-"
     task_name += str(args.seed)
     return task_name
 
@@ -407,7 +389,7 @@ def main(args):
                         osp.join(logger.get_dir(), "monitor.json"))
     env.seed(args.seed)
     gym.logger.setLevel(logging.WARN)
-    task_name = get_task_name(args)
+    task_name = get_task_short_name(args)
     args.checkpoint_dir = osp.join(args.checkpoint_dir, task_name)
     args.log_dir = osp.join(args.log_dir, task_name)
 

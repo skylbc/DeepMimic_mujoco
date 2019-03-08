@@ -40,8 +40,9 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.scale_err = 1.0
 
         self.mocap_data_len = len(self.mocap.data)
+        self.idx_mocap = 0
 
-        mujoco_env.MujocoEnv.__init__(self, file_path, 30)
+        mujoco_env.MujocoEnv.__init__(self, file_path, 5)
         utils.EzPickle.__init__(self)
 
     def _get_obs(self):
@@ -66,9 +67,12 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         err_root = 0.0
         err_com = 0.0
 
-        curr_time = self.get_time()
-        idx_mocap = int(curr_time // self.dt) % self.mocap_data_len
-        target_mocap = self.mocap.data[idx_mocap, 1:]
+        # curr_time = self.get_time()
+        # idx_mocap = int(curr_time // self.dt) % self.mocap_data_len
+        # target_mocap = self.mocap.data[idx_mocap, 1:]
+
+        target_mocap = self.mocap.data[self.idx_mocap%self.mocap_data_len, 1:]
+        self.idx_mocap += 1
 
         target_mocap[7:] = self.interface.convert(target_mocap[7:], mode='dp2mujoco', opt='pos')
         curr_configs = self.get_joint_configs()
@@ -101,8 +105,14 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.do_simulation(action, self.frame_skip)
         observation = self._get_obs()
         reward = self.calc_reward()
-        done = False
         info = dict()
+
+        if self.idx_mocap >= self.mocap_data_len:
+            done = True
+            self.idx_mocap = 0
+        else:
+            done = False
+
         return observation, reward, done, info
 
     def goto(self, pos):
