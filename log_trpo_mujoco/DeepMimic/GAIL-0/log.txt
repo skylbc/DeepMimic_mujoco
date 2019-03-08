@@ -1,0 +1,7 @@
+Logging to log_trpo_mujoco/DeepMimic/GAIL-0
+********** Iteration 0 ************
+Optimizing Policy...
+Expected: 0.146 Actual: 0.156
+Stepsize OK!
+Expected: 0.138 Actual: 0.137
+Stepsize OK!

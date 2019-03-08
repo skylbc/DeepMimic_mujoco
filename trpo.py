@@ -109,9 +109,8 @@ def add_vtarg_and_adv(seg, gamma, lam):
     seg["tdlamret"] = seg["adv"] + seg["vpred"]
 
 
-def learn(env, policy_func, expert_dataset, rank,
-          pretrained, pretrained_weight, *,
-          g_step, d_step, entcoeff, save_per_iter,
+def learn(env, policy_func, rank, *,
+          g_step, entcoeff, save_per_iter,
           ckpt_dir, log_dir, timesteps_per_batch, task_name,
           gamma, lam,
           max_kl, cg_iters, cg_damping=1e-2,
@@ -126,7 +125,7 @@ def learn(env, policy_func, expert_dataset, rank,
     # ----------------------------------------
     ob_space = env.observation_space
     ac_space = env.action_space
-    pi = policy_func("pi", ob_space, ac_space, reuse=(pretrained_weight != None))
+    pi = policy_func("pi", ob_space, ac_space)
     oldpi = policy_func("oldpi", ob_space, ac_space)
     atarg = tf.placeholder(dtype=tf.float32, shape=[None])  # Target advantage function (if applicable)
     ret = tf.placeholder(dtype=tf.float32, shape=[None])  # Empirical return
@@ -219,9 +218,6 @@ def learn(env, policy_func, expert_dataset, rank,
 
     g_loss_stats = stats(loss_names)
     ep_stats = stats(["True_rewards", "Rewards", "Episode_length"])
-    # if provide pretrained weight
-    if pretrained_weight is not None:
-        U.load_state(pretrained_weight, var_list=pi.get_variables())
 
     while True:
         if callback: callback(locals(), globals())
@@ -350,9 +346,8 @@ def flatten_lists(listoflists):
 
 def argsparser():
     parser = argparse.ArgumentParser("Tensorflow Implementation of GAIL")
-    parser.add_argument('--env_id', help='environment ID', default='Hopper-v2')
+    parser.add_argument('--env_id', help='environment ID', default='DeepMimic')
     parser.add_argument('--seed', help='RNG seed', type=int, default=0)
-    parser.add_argument('--expert_path', type=str, default='expert_data/mujoco/stochastic.trpo.Hopper.0.00.npz')
     parser.add_argument('--checkpoint_dir', help='the directory to save model', default='checkpoint')
     parser.add_argument('--log_dir', help='the directory to save log file', default='log')
     parser.add_argument('--load_model_path', help='if provided, load the model', type=str, default=None)
@@ -365,33 +360,25 @@ def argsparser():
     parser.add_argument('--traj_limitation', type=int, default=-1)
     # Optimization Configuration
     parser.add_argument('--g_step', help='number of steps to train policy in each epoch', type=int, default=3)
-    parser.add_argument('--d_step', help='number of steps to train discriminator in each epoch', type=int, default=1)
     # Network Configuration (Using MLP Policy)
     parser.add_argument('--policy_hidden_size', type=int, default=100)
-    parser.add_argument('--adversary_hidden_size', type=int, default=100)
     # Algorithms Configuration
     parser.add_argument('--algo', type=str, choices=['trpo', 'ppo'], default='trpo')
     parser.add_argument('--max_kl', type=float, default=0.01)
     parser.add_argument('--policy_entcoeff', help='entropy coefficiency of policy', type=float, default=0)
-    parser.add_argument('--adversary_entcoeff', help='entropy coefficiency of discriminator', type=float, default=1e-3)
     # Traing Configuration
     parser.add_argument('--save_per_iter', help='save model every xx iterations', type=int, default=100)
     parser.add_argument('--num_timesteps', help='number of timesteps per episode', type=int, default=5e6)
-    # Behavior Cloning
-    boolean_flag(parser, 'pretrained', default=False, help='Use BC to pretrain')
-    parser.add_argument('--BC_max_iter', help='Max iteration for training BC', type=int, default=1e4)
     return parser.parse_args()
 
 
 def get_task_name(args):
     task_name = args.algo + "_gail_stochastic."
-    if args.pretrained:
-        task_name += "with_pretrained."
     if args.traj_limitation != np.inf:
         task_name += "transition_limitation_%d." % args.traj_limitation
     task_name += args.env_id.split("-")[0]
-    task_name = task_name + ".g_step_" + str(args.g_step) + ".d_step_" + str(args.d_step) + \
-        ".policy_entcoeff_" + str(args.policy_entcoeff) + ".adversary_entcoeff_" + str(args.adversary_entcoeff)
+    task_name = task_name + ".g_step_" + str(args.g_step) + \
+        ".policy_entcoeff_" + str(args.policy_entcoeff)
     task_name += ".seed_" + str(args.seed)
     return task_name
 
@@ -404,7 +391,9 @@ def get_task_short_name(args):
 def main(args):
     U.make_session(num_cpu=1).__enter__()
     set_global_seeds(args.seed)
-    env = gym.make(args.env_id)
+    from dp_env import DPEnv
+    env = DPEnv()
+    # env = gym.make(args.env_id)
 
     task_name = get_task_short_name(args)
     logger.configure(dir='log_trpo_mujoco/%s'%task_name)
@@ -424,21 +413,16 @@ def main(args):
     args.log_dir = osp.join(args.log_dir, task_name)
 
     if args.task == 'train':
-        dataset = Mujoco_Dset(expert_path=args.expert_path, traj_limitation=args.traj_limitation)
         train(env,
               args.seed,
               policy_fn,
-              dataset,
               args.algo,
               args.g_step,
-              args.d_step,
               args.policy_entcoeff,
               args.num_timesteps,
               args.save_per_iter,
               args.checkpoint_dir,
               args.log_dir,
-              args.pretrained,
-              args.BC_max_iter,
               task_name
               )
     elif args.task == 'evaluate':
@@ -455,16 +439,9 @@ def main(args):
     env.close()
 
 
-def train(env, seed, policy_fn, dataset, algo,
-          g_step, d_step, policy_entcoeff, num_timesteps, save_per_iter,
-          checkpoint_dir, log_dir, pretrained, BC_max_iter, task_name=None):
-
-    pretrained_weight = None
-    if pretrained and (BC_max_iter > 0):
-        # Pretrain with behavior cloning
-        import behavior_clone
-        pretrained_weight = behavior_clone.learn(env, policy_fn, dataset,
-                                                 max_iters=BC_max_iter)
+def train(env, seed, policy_fn, algo,
+          g_step, policy_entcoeff, num_timesteps, save_per_iter,
+          checkpoint_dir, log_dir, task_name=None):
 
     rank = MPI.COMM_WORLD.Get_rank()
     if rank != 0:
@@ -472,10 +449,8 @@ def train(env, seed, policy_fn, dataset, algo,
     workerseed = seed + 10000 * MPI.COMM_WORLD.Get_rank()
     set_global_seeds(workerseed)
     env.seed(workerseed)
-    learn(env, policy_fn, dataset, rank,
-          pretrained=pretrained, pretrained_weight=pretrained_weight,
-          g_step=g_step, d_step=d_step,
-          entcoeff=policy_entcoeff,
+    learn(env, policy_fn, rank,
+          g_step=g_step, entcoeff=policy_entcoeff,
           max_timesteps=num_timesteps,
           ckpt_dir=checkpoint_dir, log_dir=log_dir,
           save_per_iter=save_per_iter,

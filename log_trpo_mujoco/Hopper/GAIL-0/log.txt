@@ -1,0 +1,1 @@
+Logging to log_trpo_mujoco/Hopper/GAIL-0
