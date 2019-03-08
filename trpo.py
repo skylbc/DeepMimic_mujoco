@@ -10,7 +10,6 @@ import utils.tf_util as U
 import numpy as np
 
 from cg import cg
-from adversary import TransitionClassifier
 from utils.mujoco_dset import Mujoco_Dset
 from utils.misc_util import set_global_seeds, zipsame, boolean_flag
 from utils.math_util import explained_variance
@@ -25,7 +24,7 @@ from mlp_policy_trpo import MlpPolicy
 # global flag_render
 # flag_render = False
 
-def traj_segment_generator(pi, env, reward_giver, horizon, stochastic):
+def traj_segment_generator(pi, env, horizon, stochastic):
     # global flag_render
 
     # Initialize state variables
@@ -75,15 +74,14 @@ def traj_segment_generator(pi, env, reward_giver, horizon, stochastic):
         acs[i] = ac
         prevacs[i] = prevac
 
-        rew = reward_giver.get_reward(ob, ac)
         ob, true_rew, new, _ = env.step(ac)
 
         # if flag_render:
         #     env.render()
-        rews[i] = rew
+        rews[i] = true_rew
         true_rews[i] = true_rew
 
-        cur_ep_ret += rew
+        cur_ep_ret += true_rew
         cur_ep_true_ret += true_rew
         cur_ep_len += 1
         if new:
@@ -111,7 +109,7 @@ def add_vtarg_and_adv(seg, gamma, lam):
     seg["tdlamret"] = seg["adv"] + seg["vpred"]
 
 
-def learn(env, policy_func, reward_giver, expert_dataset, rank,
+def learn(env, policy_func, expert_dataset, rank,
           pretrained, pretrained_weight, *,
           g_step, d_step, entcoeff, save_per_iter,
           ckpt_dir, log_dir, timesteps_per_batch, task_name,
@@ -157,7 +155,6 @@ def learn(env, policy_func, reward_giver, expert_dataset, rank,
     var_list = [v for v in all_var_list if v.name.startswith("pi/pol") or v.name.startswith("pi/logstd")]
     vf_var_list = [v for v in all_var_list if v.name.startswith("pi/vff")]
     assert len(var_list) == len(vf_var_list) + 1
-    d_adam = MpiAdam(reward_giver.get_trainable_variables())
     vfadam = MpiAdam(vf_var_list)
 
     get_flat = U.GetFlat(var_list)
@@ -202,14 +199,13 @@ def learn(env, policy_func, reward_giver, expert_dataset, rank,
     th_init = get_flat()
     MPI.COMM_WORLD.Bcast(th_init, root=0)
     set_from_flat(th_init)
-    d_adam.sync()
     vfadam.sync()
     if rank == 0:
         print("Init param sum", th_init.sum(), flush=True)
 
     # Prepare for rollouts
     # ----------------------------------------
-    seg_gen = traj_segment_generator(pi, env, reward_giver, timesteps_per_batch, stochastic=True)
+    seg_gen = traj_segment_generator(pi, env, timesteps_per_batch, stochastic=True)
 
     episodes_so_far = 0
     timesteps_so_far = 0
@@ -222,7 +218,6 @@ def learn(env, policy_func, reward_giver, expert_dataset, rank,
     assert sum([max_iters > 0, max_timesteps > 0, max_episodes > 0]) == 1
 
     g_loss_stats = stats(loss_names)
-    d_loss_stats = stats(reward_giver.loss_name)
     ep_stats = stats(["True_rewards", "Rewards", "Episode_length"])
     # if provide pretrained weight
     if pretrained_weight is not None:
@@ -325,22 +320,6 @@ def learn(env, policy_func, reward_giver, expert_dataset, rank,
         for (lossname, lossval) in zip(loss_names, meanlosses):
             logger.record_tabular(lossname, lossval)
         logger.record_tabular("ev_tdlam_before", explained_variance(vpredbefore, tdlamret))
-        # ------------------ Update D ------------------
-        logger.log("Optimizing Discriminator...")
-        logger.log(fmt_row(13, reward_giver.loss_name))
-        ob_expert, ac_expert = expert_dataset.get_next_batch(len(ob))
-        batch_size = len(ob) // d_step
-        d_losses = []  # list of tuples, each of which gives the loss for a minibatch
-        for ob_batch, ac_batch in dataset.iterbatches((ob, ac),
-                                                      include_final_partial_batch=False,
-                                                      batch_size=batch_size):
-            ob_expert, ac_expert = expert_dataset.get_next_batch(len(ob_batch))
-            # update running mean/std for reward_giver
-            if hasattr(reward_giver, "obs_rms"): reward_giver.obs_rms.update(np.concatenate((ob_batch, ob_expert), 0))
-            *newlosses, g = reward_giver.lossandgrad(ob_batch, ac_batch, ob_expert, ac_expert)
-            d_adam.update(allmean(g), d_stepsize)
-            d_losses.append(newlosses)
-        logger.log(fmt_row(13, np.mean(d_losses, axis=0)))
 
         lrlocal = (seg["ep_lens"], seg["ep_rets"], seg["ep_true_rets"])  # local values
         listoflrpairs = MPI.COMM_WORLD.allgather(lrlocal)  # list of tuples
@@ -446,11 +425,9 @@ def main(args):
 
     if args.task == 'train':
         dataset = Mujoco_Dset(expert_path=args.expert_path, traj_limitation=args.traj_limitation)
-        reward_giver = TransitionClassifier(env, args.adversary_hidden_size, entcoeff=args.adversary_entcoeff)
         train(env,
               args.seed,
               policy_fn,
-              reward_giver,
               dataset,
               args.algo,
               args.g_step,
@@ -478,7 +455,7 @@ def main(args):
     env.close()
 
 
-def train(env, seed, policy_fn, reward_giver, dataset, algo,
+def train(env, seed, policy_fn, dataset, algo,
           g_step, d_step, policy_entcoeff, num_timesteps, save_per_iter,
           checkpoint_dir, log_dir, pretrained, BC_max_iter, task_name=None):
 
@@ -495,18 +472,18 @@ def train(env, seed, policy_fn, reward_giver, dataset, algo,
     workerseed = seed + 10000 * MPI.COMM_WORLD.Get_rank()
     set_global_seeds(workerseed)
     env.seed(workerseed)
-    learn(env, policy_fn, reward_giver, dataset, rank,
-                    pretrained=pretrained, pretrained_weight=pretrained_weight,
-                    g_step=g_step, d_step=d_step,
-                    entcoeff=policy_entcoeff,
-                    max_timesteps=num_timesteps,
-                    ckpt_dir=checkpoint_dir, log_dir=log_dir,
-                    save_per_iter=save_per_iter,
-                    timesteps_per_batch=1024,
-                    max_kl=0.01, cg_iters=10, cg_damping=0.1,
-                    gamma=0.995, lam=0.97,
-                    vf_iters=5, vf_stepsize=1e-3,
-                    task_name=task_name)
+    learn(env, policy_fn, dataset, rank,
+          pretrained=pretrained, pretrained_weight=pretrained_weight,
+          g_step=g_step, d_step=d_step,
+          entcoeff=policy_entcoeff,
+          max_timesteps=num_timesteps,
+          ckpt_dir=checkpoint_dir, log_dir=log_dir,
+          save_per_iter=save_per_iter,
+          timesteps_per_batch=1024,
+          max_kl=0.01, cg_iters=10, cg_damping=0.1,
+          gamma=0.995, lam=0.97,
+          vf_iters=5, vf_stepsize=1e-3,
+          task_name=task_name)
 
 def runner(env, policy_func, load_model_path, timesteps_per_batch, number_trajs,
            stochastic_policy, save=False, reuse=False):
