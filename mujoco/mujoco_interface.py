@@ -1,8 +1,8 @@
 import numpy as np
 from pyquaternion import Quaternion
 
-from mujoco.mocap_util import calc_angular_vel_from_quaternion
-from mujoco.mocap_util import BODY_JOINTS, BODY_JOINTS_IN_DP_ORDER
+from mujoco.mocap_util import calc_angular_vel_from_quaternion, calc_diff_from_quaternion
+from mujoco.mocap_util import BODY_JOINTS, BODY_JOINTS_IN_DP_ORDER, JOINT_WEIGHT
 from mujoco.mocap_util import DOF_DEF, PARAMS_KP_KD, PARAMS_KP_KD, BODY_DEFS
 
 class MujocoInterface(object):
@@ -95,12 +95,12 @@ class MujocoInterface(object):
         return np.array(pos_output)
 
     def action2torque(self, action): # PD controller
-        action = self.align(action, mode='dp2mujoco', opt='pos')
+        action = self.convert(action, mode='dp2mujoco', opt='pos')
 
         curr_pos, curr_vel = self.get_curr_pos_vel()
         assert len(curr_pos) == len(action)
 
-        p_err = self.calc_pos_err(curr_pos, action)
+        p_err = self.calc_config_err(curr_pos, action)
         vel = p_err * 1.0 / self.dt
         v_err = self.calc_vel_err(curr_vel, vel)
         torque = self.kp * p_err + self.kd * v_err
@@ -111,15 +111,15 @@ class MujocoInterface(object):
         return valid_input_val[self.idx_align_perm]
 
     def align_ob_pos(self, ob_pos):
-        return self.align(ob_pos, mode='mujoco2dp', opt='pos')
+        return self.convert(ob_pos, mode='mujoco2dp', opt='pos')
 
     def align_ob_vel(self, ob_vel):
-        return self.align(ob_vel, mode='mujoco2dp', opt='vel')
+        return self.convert(ob_vel, mode='mujoco2dp', opt='vel')
 
-    def calc_pos_err(self, now_pos, next_pos):
+    def calc_config_err(self, now_config, next_config): # no root joint
         curr_idx = 0
         offset_idx = 0
-        assert len(now_pos) == len(next_pos)
+        assert len(now_config) == len(next_config)
         err = []
 
         for each_joint in BODY_JOINTS:
@@ -127,17 +127,45 @@ class MujocoInterface(object):
             dof = DOF_DEF[each_joint]
             if dof == 1:
                 offset_idx += 1
+                seg_0 = now_config[curr_idx]
+                seg_1 = next_config[curr_idx]
+                err += [(seg_1 - seg_0) * 1.0]
+            elif dof == 3:
+                offset_idx += 4
+                seg_0 = now_config[curr_idx:offset_idx]
+                seg_1 = next_config[curr_idx:offset_idx]
+                err += calc_angular_vel_from_quaternion(seg_0, seg_1, 1.0)
+        return np.array(err)
+
+    def calc_pos_err(self, now_pos, next_pos): # including root joint
+        curr_idx = 0
+        offset_idx = 0
+        assert len(now_pos) == len(next_pos)
+        err = 0.0
+        for each_joint in BODY_DEFS:
+            curr_idx = offset_idx
+            dof = DOF_DEF[each_joint]
+            weight = JOINT_WEIGHT[each_joint]
+            if dof == 0:
+                continue
+            if dof == 1:
+                offset_idx += 1
                 seg_0 = now_pos[curr_idx]
                 seg_1 = next_pos[curr_idx]
-                err += [(seg_1 - seg_0) * 1.0]
+                err += (seg_1 - seg_0) * 1.0 * weight
             elif dof == 3:
                 offset_idx += 4
                 seg_0 = now_pos[curr_idx:offset_idx]
                 seg_1 = next_pos[curr_idx:offset_idx]
-                err += calc_angular_vel_from_quaternion(seg_0, seg_1, 1.0)
-        return np.array(err)
+                err += calc_diff_from_quaternion(seg_0, seg_1) * 1.0 * weight
+        return err
 
-    def align(self, input_val, mode, opt):
+    def calc_vel_err(self, now_pos, next_pos, dt): # including root joint
+        config_err = self.calc_config_err(now_pos[7:], next_pos[7:])
+        # config_err_root = self.
+        vel_err = config_err * 1.0 / dt
+
+    def convert(self, input_val, mode, opt):
         assert opt in ['vel', 'pos']
         assert mode in ['dp2mujoco', 'mujoco2dp']
 
@@ -178,6 +206,3 @@ class MujocoInterface(object):
             output_val += tmp_seg
 
         return output_val
-
-    def calc_vel_err(self, now_vel, next_vel):
-        return next_vel - now_vel

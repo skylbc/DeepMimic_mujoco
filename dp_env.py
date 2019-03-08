@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 import numpy as np
+import math
 
 from mujoco.mocap import MocapDM
 from mujoco.mujoco_interface import MujocoInterface
+from mujoco.mocap_util import JOINT_WEIGHT
 
 from gym.envs.mujoco import mujoco_env
 from gym import utils
@@ -52,15 +54,40 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
     def calc_reward(self):
         assert len(self.mocap.data) != 0
+        err_pose = 0.0
+        err_vel = 0.0
+        err_end_eff = 0.0
+        err_root = 0.0
+        err_com = 0.0
+
         curr_time = env.get_time()
-        idx_mocap = curr_time//self.dt
+        idx_mocap = curr_time // self.dt
 
         target_mocap = self.mocap.data[idx_mocap, 1:]
-        curr_pos = self.get_joint_configs()
+        target_mocap[:7] = self.interface.convert(target_mocap[:7], mode='dp2mujoco', opt='pos')
+        curr_configs = self.get_joint_configs()
 
-        err_pos = self.interface.calc_pos_err(curr_pos, target_mocap)
+        err_pose = self.interface.calc_pos_err(curr_configs, target_mocap)
+        # err_vel = self.interface.calc_vel_err(curr_configs, target_mocap)
+        err_vel = 0.0
+        # TODO
+        err_end_eff =  0.0
+        # TODO
+        err_root = 0.0
+        # TODO
+        err_com = 0.0
 
-        return 0.0
+        reward_pose     = math.exp(-self.scale_err * self.scale_pose * err_pose)
+        reward_vel      = math.exp(-self.scale_err * self.scale_vel * err_vel)
+        reward_end_eff  = math.exp(-self.scale_err * self.scale_end_eff * err_end_eff)
+        reward_root     = math.exp(-self.scale_err * self.scale_root * err_root)
+        reward_com      = math.exp(-self.scale_err * self.scale_com * err_com)
+
+        reward = self.weight_pose * reward_pose + self.weight_vel * reward_vel + \
+             self.weight_end_eff * reward_end_eff + self.weight_root * reward_root + \
+                 self.weight_com * reward_com
+
+        return reward
 
     def step(self, action):
         self.do_simulation(action, self.frame_skip)
