@@ -54,14 +54,11 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
     def get_joint_configs(self):
         data = self.sim.data
-        return data.qpos[:]
+        return data.qpos
 
     def load_mocap(self, filepath):
         self.mocap.load_mocap(filepath)
         self.dt = self.mocap.dt
-        xmlpath = '/home/mingfei/Documents/DeepMimic/mujoco/humanoid_deepmimic/envs/asset/dp_env_v1.xml'
-        with open(xmlpath) as fin:
-            MODEL_XML = fin.read()
 
     def calc_reward(self):
         assert len(self.mocap.data) != 0
@@ -76,7 +73,7 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         # target_mocap = self.mocap.data[idx_mocap, 1:]
 
         target_mocap = self.mocap.data[self.idx_mocap%self.mocap_data_len, 1:]
-        self.curr_frame = target_mocap[:]
+        self.curr_frame = target_mocap
         self.idx_mocap += 1
 
         curr_configs = self.get_joint_configs()
