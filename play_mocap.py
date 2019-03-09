@@ -1,8 +1,10 @@
+from os import getcwd
 from mujoco_py import load_model_from_xml, MjSim, MjViewer
 
 class PlayMocap(object):
     def __init__(self):
-        xmlpath = '/home/mingfei/Documents/DeepMimic/mujoco/humanoid_deepmimic/envs/asset/dp_env_v1.xml'
+        curr_path = getcwd()
+        xmlpath = curr_path + '/mujoco/humanoid_deepmimic/envs/asset/dp_env_v1.xml'
         with open(xmlpath) as fin:
             MODEL_XML = fin.read()
 
