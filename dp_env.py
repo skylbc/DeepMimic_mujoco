@@ -11,6 +11,8 @@ from mujoco_py import load_model_from_xml, MjSim, MjViewer
 from gym.envs.mujoco import mujoco_env
 from gym import utils
 
+from config import Config
+
 # TODO: load mocap data; calc rewards
 # TODO: early stop
 
@@ -21,13 +23,12 @@ def mass_center(model, sim):
 
 class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def __init__(self):
-        self.curr_path = getcwd()
-        file_path = self.curr_path + '/mujoco/humanoid_deepmimic/envs/asset/dp_env_v1.xml'
+        xml_file_path = Config.xml_path
 
         self.mocap = MocapDM()
         self.interface = MujocoInterface()
 
-        self.mocap.load_mocap(self.curr_path + "/mujoco/motions/humanoid3d_crawl.txt")
+        self.mocap.load_mocap(Config.mocap_path)
 
         self.weight_pose = 0.5
         self.weight_vel = 0.05
@@ -45,7 +46,7 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.mocap_data_len = len(self.mocap.data)
         self.idx_mocap = 0
 
-        mujoco_env.MujocoEnv.__init__(self, file_path, 5)
+        mujoco_env.MujocoEnv.__init__(self, xml_file_path, 5)
         utils.EzPickle.__init__(self)
 
     def _get_obs(self):
