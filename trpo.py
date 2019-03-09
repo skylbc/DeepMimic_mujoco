@@ -452,7 +452,8 @@ def traj_1_generator(pi, env, horizon, stochastic):
 def main(args):
     U.make_session(num_cpu=1).__enter__()
     set_global_seeds(args.seed)
-    from dp_env import DPEnv
+    # from dp_env import DPEnv
+    from dp_env_test import DPEnv
     env = DPEnv()
     # env = gym.make(args.env_id)
 
@@ -521,7 +522,7 @@ def argsparser():
     parser.add_argument('--policy_entcoeff', help='entropy coefficiency of policy', type=float, default=0)
     # Traing Configuration
     parser.add_argument('--save_per_iter', help='save model every xx iterations', type=int, default=100)
-    parser.add_argument('--num_timesteps', help='number of timesteps per episode', type=int, default=1e5)
+    parser.add_argument('--num_timesteps', help='number of timesteps per episode', type=int, default=1e6)
     return parser.parse_args()
 
 if __name__ == "__main__":
