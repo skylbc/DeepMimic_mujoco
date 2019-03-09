@@ -508,6 +508,7 @@ def traj_1_generator(pi, env, horizon, stochastic):
         acs.append(ac)
 
         ob, rew, new, _ = env.step(ac)
+        env.render()
         rews.append(rew)
 
         cur_ep_ret += rew
