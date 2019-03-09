@@ -111,6 +111,7 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         reward = self.calc_reward()
         info = dict()
 
+        # TODO definition of done: problematic
         if self.idx_mocap !=0 and self.idx_mocap % self.mocap_data_len == 0:
             done = True
         else:
