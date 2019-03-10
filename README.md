@@ -1,13 +1,18 @@
 # Intro
 
-Mujoco version of [DeepMimic](https://xbpeng.github.io/projects/DeepMimic/index.html); no C++, no bullet engine. 
+Mujoco version of [DeepMimic](https://xbpeng.github.io/projects/DeepMimic/index.html): 
+* No C++ codes --> pure python
+* No bullet engine --> Mujoco engine
+* No PPO --> TRPO-based 
 
-# Running
-**Under progress**
+# Usage
+Training a policy:
 ``` python
-python3 DeepMimic.py # for evaluation
-python3 DeepMimic_Optimizer.py # for training
-python3 -m mujoco.mocap # for playing mocap data
+python3 trpo --task train
+```
+Running a policy:
+``` python
+python3 trpo --task evaluate --load_model_path XXXX # for evaluation
 ```
 
 # Acknowledge
@@ -16,7 +21,4 @@ This repository is based on code accompanying the SIGGRAPH 2018 paper:
 "DeepMimic: Example-Guided Deep Reinforcement Learning of Physics-Based Character Skills".
 The framework uses reinforcement learning to train a simulated humanoid to imitate a variety
 of motion skills from mocap data.
-
 Project page: https://xbpeng.github.io/projects/DeepMimic/index.html
-
-![Skills](images/teaser.png)
