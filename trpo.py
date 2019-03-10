@@ -101,7 +101,7 @@ def add_vtarg_and_adv(seg, gamma, lam):
 
 
 def learn(env, policy_func, rank, *,
-          g_step, entcoeff, save_per_iter,
+          pretrained_weight_path, g_step, entcoeff, save_per_iter,
           ckpt_dir, log_dir, timesteps_per_batch, task_name,
           gamma, lam,
           max_kl, cg_iters, cg_damping=1e-2,
@@ -209,6 +209,9 @@ def learn(env, policy_func, rank, *,
 
     g_loss_stats = stats(loss_names)
     ep_stats = stats(["Rewards", "Episode_length"])
+
+    if pretrained_weight_path is not None:
+        U.load_state(pretrained_weight_path)
 
     while True:
         if callback: callback(locals(), globals())
@@ -327,14 +330,11 @@ def learn(env, policy_func, rank, *,
         if rank == 0:
             logger.dump_tabular()
 
-
 def flatten_lists(listoflists):
     return [el for list_ in listoflists for el in list_]
 
-
 def get_task_name(args):
-    task_name = args.algo + "_stochastic."
-    task_name += args.env_id.split("-")[0]
+    task_name = args.env_id.split("-")[0]
     task_name = task_name + ".g_step_" + str(args.g_step) + \
         ".policy_entcoeff_" + str(args.policy_entcoeff)
     task_name += ".seed_" + str(args.seed)
@@ -347,9 +347,8 @@ def get_task_short_name(args):
     task_name += str(args.seed)
     return task_name
 
-def train(env, seed, policy_fn, algo,
-          g_step, policy_entcoeff, num_timesteps, save_per_iter,
-          checkpoint_dir, log_dir, task_name=None):
+def train(env, seed, policy_fn, g_step, policy_entcoeff, pretrained_weight_path,
+          num_timesteps, save_per_iter, checkpoint_dir, log_dir, task_name=None):
 
     rank = MPI.COMM_WORLD.Get_rank()
     if rank != 0:
@@ -357,7 +356,8 @@ def train(env, seed, policy_fn, algo,
     workerseed = seed + 10000 * MPI.COMM_WORLD.Get_rank()
     set_global_seeds(workerseed)
     env.seed(workerseed)
-    learn(env, policy_fn, rank,
+    learn(env, policy_fn, rank, 
+          pretrained_weight_path=pretrained_weight_path,
           g_step=g_step, entcoeff=policy_entcoeff,
           max_timesteps=num_timesteps,
           ckpt_dir=checkpoint_dir, log_dir=log_dir,
@@ -427,6 +427,7 @@ def traj_1_generator(pi, env, horizon, stochastic):
 
     while True:
         ac, vpred = pi.act(stochastic, ob)
+        print(ac)
         obs.append(ob)
         news.append(new)
         acs.append(ac)
@@ -478,9 +479,9 @@ def main(args):
         train(env,
               args.seed,
               policy_fn,
-              args.algo,
               args.g_step,
               args.policy_entcoeff,
+              args.pretrained_weight_path,
               args.num_timesteps,
               args.save_per_iter,
               args.checkpoint_dir,
@@ -517,12 +518,12 @@ def argsparser():
     # Network Configuration (Using MLP Policy)
     parser.add_argument('--policy_hidden_size', type=int, default=100)
     # Algorithms Configuration
-    parser.add_argument('--algo', type=str, choices=['trpo', 'ppo'], default='trpo')
     parser.add_argument('--max_kl', type=float, default=0.01)
     parser.add_argument('--policy_entcoeff', help='entropy coefficiency of policy', type=float, default=0)
     # Traing Configuration
     parser.add_argument('--save_per_iter', help='save model every xx iterations', type=int, default=100)
-    parser.add_argument('--num_timesteps', help='number of timesteps per episode', type=int, default=1e6)
+    parser.add_argument('--num_timesteps', help='number of timesteps per episode', type=int, default=5e6)
+    parser.add_argument('--pretrained_weight_path', help='path of pretrained weights', type=str, default=None)
     return parser.parse_args()
 
 if __name__ == "__main__":
