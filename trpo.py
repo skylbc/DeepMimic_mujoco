@@ -22,6 +22,8 @@ from mpi_adam import MpiAdam
 from statistics import stats
 from mlp_policy_trpo import MlpPolicy
 
+from config import Config
+
 global flag_render
 flag_render = False
 
@@ -99,7 +101,7 @@ def add_vtarg_and_adv(seg, gamma, lam):
 
 
 def learn(env, policy_func, rank, *,
-          g_step, entcoeff, save_per_iter,
+          pretrained_weight_path, g_step, entcoeff, save_per_iter,
           ckpt_dir, log_dir, timesteps_per_batch, task_name,
           gamma, lam,
           max_kl, cg_iters, cg_damping=1e-2,
@@ -207,6 +209,9 @@ def learn(env, policy_func, rank, *,
 
     g_loss_stats = stats(loss_names)
     ep_stats = stats(["Rewards", "Episode_length"])
+
+    if pretrained_weight_path is not None:
+        U.load_state(pretrained_weight_path)
 
     while True:
         if callback: callback(locals(), globals())
@@ -325,42 +330,11 @@ def learn(env, policy_func, rank, *,
         if rank == 0:
             logger.dump_tabular()
 
-
 def flatten_lists(listoflists):
     return [el for list_ in listoflists for el in list_]
 
-
-def argsparser():
-    parser = argparse.ArgumentParser("Tensorflow Implementation of GAIL")
-    parser.add_argument('--env_id', help='environment ID', default='DeepMimic')
-    parser.add_argument('--seed', help='RNG seed', type=int, default=0)
-    parser.add_argument('--checkpoint_dir', help='the directory to save model', default='checkpoint')
-    parser.add_argument('--log_dir', help='the directory to save log file', default='log')
-    parser.add_argument('--load_model_path', help='if provided, load the model', type=str, default=None)
-    # Task
-    parser.add_argument('--task', type=str, choices=['train', 'evaluate', 'sample'], default='train')
-    # for evaluatation
-    boolean_flag(parser, 'stochastic_policy', default=False, help='use stochastic/deterministic policy to evaluate')
-    boolean_flag(parser, 'save_sample', default=False, help='save the trajectories or not')
-    #  Mujoco Dataset Configuration
-    parser.add_argument('--traj_limitation', type=int, default=-1)
-    # Optimization Configuration
-    parser.add_argument('--g_step', help='number of steps to train policy in each epoch', type=int, default=3)
-    # Network Configuration (Using MLP Policy)
-    parser.add_argument('--policy_hidden_size', type=int, default=100)
-    # Algorithms Configuration
-    parser.add_argument('--algo', type=str, choices=['trpo', 'ppo'], default='trpo')
-    parser.add_argument('--max_kl', type=float, default=0.01)
-    parser.add_argument('--policy_entcoeff', help='entropy coefficiency of policy', type=float, default=0)
-    # Traing Configuration
-    parser.add_argument('--save_per_iter', help='save model every xx iterations', type=int, default=100)
-    parser.add_argument('--num_timesteps', help='number of timesteps per episode', type=int, default=5e6)
-    return parser.parse_args()
-
-
 def get_task_name(args):
-    task_name = args.algo + "_stochastic."
-    task_name += args.env_id.split("-")[0]
+    task_name = args.env_id.split("-")[0]
     task_name = task_name + ".g_step_" + str(args.g_step) + \
         ".policy_entcoeff_" + str(args.policy_entcoeff)
     task_name += ".seed_" + str(args.seed)
@@ -369,63 +343,12 @@ def get_task_name(args):
 def get_task_short_name(args):
     task_name = args.env_id.split("-")[0] + '/'
     task_name += "trpo-"
+    task_name += "%s-"%(Config.motion)
     task_name += str(args.seed)
     return task_name
 
-def main(args):
-    U.make_session(num_cpu=1).__enter__()
-    set_global_seeds(args.seed)
-    from dp_env import DPEnv
-    env = DPEnv()
-    # env = gym.make(args.env_id)
-
-    task_name = get_task_short_name(args)
-    logger.configure(dir='log_trpo_mujoco/%s'%task_name)
-
-    def policy_fn(name, ob_space, ac_space, reuse=False):
-        return MlpPolicy(name=name, ob_space=ob_space, ac_space=ac_space,
-                                    reuse=reuse, hid_size=args.policy_hidden_size, num_hid_layers=2)
-    import logging
-    import os.path as osp
-    import bench
-    env = bench.Monitor(env, logger.get_dir() and
-                        osp.join(logger.get_dir(), "monitor.json"))
-    env.seed(args.seed)
-    gym.logger.setLevel(logging.WARN)
-    task_name = get_task_short_name(args)
-    args.checkpoint_dir = osp.join(args.checkpoint_dir, task_name)
-    args.log_dir = osp.join(args.log_dir, task_name)
-
-    if args.task == 'train':
-        train(env,
-              args.seed,
-              policy_fn,
-              args.algo,
-              args.g_step,
-              args.policy_entcoeff,
-              args.num_timesteps,
-              args.save_per_iter,
-              args.checkpoint_dir,
-              args.log_dir,
-              task_name
-              )
-    elif args.task == 'evaluate':
-        runner(env,
-               policy_fn,
-               args.load_model_path,
-               timesteps_per_batch=1024,
-               number_trajs=10,
-               stochastic_policy=args.stochastic_policy,
-               save=args.save_sample
-               )
-    else:
-        raise NotImplementedError
-    env.close()
-
-
-def train(env, seed, policy_fn, algo,
-          g_step, policy_entcoeff, num_timesteps, save_per_iter,
-          checkpoint_dir, log_dir, task_name=None):
+def train(env, seed, policy_fn, g_step, policy_entcoeff, pretrained_weight_path,
+          num_timesteps, save_per_iter, checkpoint_dir, log_dir, task_name=None):
 
     rank = MPI.COMM_WORLD.Get_rank()
     if rank != 0:
@@ -433,7 +356,8 @@ def train(env, seed, policy_fn, algo,
     workerseed = seed + 10000 * MPI.COMM_WORLD.Get_rank()
     set_global_seeds(workerseed)
     env.seed(workerseed)
-    learn(env, policy_fn, rank,
+    learn(env, policy_fn, rank, 
+          pretrained_weight_path=pretrained_weight_path,
           g_step=g_step, entcoeff=policy_entcoeff,
           max_timesteps=num_timesteps,
           ckpt_dir=checkpoint_dir, log_dir=log_dir,
@@ -503,11 +427,13 @@ def traj_1_generator(pi, env, horizon, stochastic):
 
     while True:
         ac, vpred = pi.act(stochastic, ob)
+        print(ac)
         obs.append(ob)
         news.append(new)
         acs.append(ac)
 
         ob, rew, new, _ = env.step(ac)
+        env.render()
         rews.append(rew)
 
         cur_ep_ret += rew
@@ -523,6 +449,82 @@ def traj_1_generator(pi, env, horizon, stochastic):
     traj = {"ob": obs, "rew": rews, "new": news, "ac": acs,
             "ep_ret": cur_ep_ret, "ep_len": cur_ep_len}
     return traj
+
+def main(args):
+    U.make_session(num_cpu=1).__enter__()
+    set_global_seeds(args.seed)
+    # from dp_env import DPEnv
+    from dp_env_test import DPEnv
+    env = DPEnv()
+    # env = gym.make(args.env_id)
+
+    task_name = get_task_short_name(args)
+    logger.configure(dir='log_trpo_mujoco/%s'%task_name)
+
+    def policy_fn(name, ob_space, ac_space, reuse=False):
+        return MlpPolicy(name=name, ob_space=ob_space, ac_space=ac_space,
+                                    reuse=reuse, hid_size=args.policy_hidden_size, num_hid_layers=2)
+    import logging
+    import os.path as osp
+    import bench
+    env = bench.Monitor(env, logger.get_dir() and
+                        osp.join(logger.get_dir(), "monitor.json"))
+    env.seed(args.seed)
+    gym.logger.setLevel(logging.WARN)
+    task_name = get_task_short_name(args)
+    args.checkpoint_dir = osp.join(args.checkpoint_dir, task_name)
+    args.log_dir = osp.join(args.log_dir, task_name)
+
+    if args.task == 'train':
+        train(env,
+              args.seed,
+              policy_fn,
+              args.g_step,
+              args.policy_entcoeff,
+              args.pretrained_weight_path,
+              args.num_timesteps,
+              args.save_per_iter,
+              args.checkpoint_dir,
+              args.log_dir,
+              task_name)
+    elif args.task == 'evaluate':
+        runner(env,
+               policy_fn,
+               args.load_model_path,
+               timesteps_per_batch=1024,
+               number_trajs=10,
+               stochastic_policy=args.stochastic_policy,
+               save=args.save_sample)
+    else:
+        raise NotImplementedError
+    env.close()
+
+def argsparser():
+    parser = argparse.ArgumentParser("Tensorflow Implementation of GAIL")
+    parser.add_argument('--env_id', help='environment ID', default='DeepMimic')
+    parser.add_argument('--seed', help='RNG seed', type=int, default=0)
+    parser.add_argument('--checkpoint_dir', help='the directory to save model', default='checkpoint')
+    parser.add_argument('--log_dir', help='the directory to save log file', default='log')
+    parser.add_argument('--load_model_path', help='if provided, load the model', type=str, default=None)
+    # Task
+    parser.add_argument('--task', type=str, choices=['train', 'evaluate', 'sample'], default='train')
+    # for evaluatation
+    boolean_flag(parser, 'stochastic_policy', default=False, help='use stochastic/deterministic policy to evaluate')
+    boolean_flag(parser, 'save_sample', default=False, help='save the trajectories or not')
+    #  Mujoco Dataset Configuration
+    parser.add_argument('--traj_limitation', type=int, default=-1)
+    # Optimization Configuration
+    parser.add_argument('--g_step', help='number of steps to train policy in each epoch', type=int, default=3)
+    # Network Configuration (Using MLP Policy)
+    parser.add_argument('--policy_hidden_size', type=int, default=100)
+    # Algorithms Configuration
+    parser.add_argument('--max_kl', type=float, default=0.01)
+    parser.add_argument('--policy_entcoeff', help='entropy coefficiency of policy', type=float, default=0)
+    # Traing Configuration
+    parser.add_argument('--save_per_iter', help='save model every xx iterations', type=int, default=100)
+    parser.add_argument('--num_timesteps', help='number of timesteps per episode', type=int, default=5e6)
+    parser.add_argument('--pretrained_weight_path', help='path of pretrained weights', type=str, default=None)
+    return parser.parse_args()
 
 if __name__ == "__main__":
     args = argsparser()

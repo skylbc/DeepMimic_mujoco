@@ -11,6 +11,8 @@ from mujoco_py import load_model_from_xml, MjSim, MjViewer
 from gym.envs.mujoco import mujoco_env
 from gym import utils
 
+from config import Config
+
 # TODO: load mocap data; calc rewards
 # TODO: early stop
 
@@ -21,13 +23,11 @@ def mass_center(model, sim):
 
 class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def __init__(self):
-        self.curr_path = getcwd()
-        file_path = self.curr_path + '/mujoco/humanoid_deepmimic/envs/asset/dp_env_v1.xml'
+        xml_file_path = Config.xml_path
 
         self.mocap = MocapDM()
         self.interface = MujocoInterface()
-
-        self.mocap.load_mocap(self.curr_path + "/mujoco/motions/humanoid3d_crawl.txt")
+        self.load_mocap(Config.mocap_path)
 
         self.weight_pose = 0.5
         self.weight_vel = 0.05
@@ -42,10 +42,9 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.scale_com = 10.0
         self.scale_err = 1.0
 
-        self.mocap_data_len = len(self.mocap.data)
         self.idx_mocap = 0
 
-        mujoco_env.MujocoEnv.__init__(self, file_path, 5)
+        mujoco_env.MujocoEnv.__init__(self, xml_file_path, 6)
         utils.EzPickle.__init__(self)
 
     def _get_obs(self):
@@ -56,14 +55,12 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
     def get_joint_configs(self):
         data = self.sim.data
-        return data.qpos[:]
+        return data.qpos
 
     def load_mocap(self, filepath):
         self.mocap.load_mocap(filepath)
-        self.dt = self.mocap.dt
-        xmlpath = self.curr_path + '/mujoco/humanoid_deepmimic/envs/asset/dp_env_v1.xml'
-        with open(xmlpath) as fin:
-            MODEL_XML = fin.read()
+        self.mocap_dt = self.mocap.dt
+        self.mocap_data_len = len(self.mocap.data)
 
     def calc_reward(self):
         assert len(self.mocap.data) != 0
@@ -73,13 +70,14 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         err_root = 0.0
         err_com = 0.0
 
-        # curr_time = self.get_time()
-        # idx_mocap = int(curr_time // self.dt) % self.mocap_data_len
-        # target_mocap = self.mocap.data[idx_mocap, 1:]
+        curr_time = self.get_time() * 6
+        self.idx_mocap = int(curr_time // self.mocap_dt) 
+        target_mocap = self.mocap.data[self.idx_mocap % self.mocap_data_len, 1:]
+        self.curr_frame = target_mocap
 
-        target_mocap = self.mocap.data[self.idx_mocap%self.mocap_data_len, 1:]
-        self.curr_frame = target_mocap[:]
-        self.idx_mocap += 1
+        # target_mocap = self.mocap.data[self.idx_mocap%self.mocap_data_len, 1:]
+        # self.curr_frame = target_mocap
+        # self.idx_mocap += 1
 
         curr_configs = self.get_joint_configs()
 
@@ -113,9 +111,9 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         reward = self.calc_reward()
         info = dict()
 
-        if self.idx_mocap >= self.mocap_data_len:
+        # TODO definition of done: problematic
+        if self.idx_mocap !=0 and self.idx_mocap % self.mocap_data_len == 0:
             done = True
-            self.idx_mocap = 0
         else:
             done = False
 
