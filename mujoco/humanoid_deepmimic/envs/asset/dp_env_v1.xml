@@ -91,9 +91,9 @@
     </worldbody>
 
     <actuator>
-        <motor gear="200 0 0" joint="chest" name="chest_x"/>
-        <motor gear="0 200 0" joint="chest" name="chest_y"/>
-        <motor gear="0 0 200" joint="chest" name="chest_z"/>
+        <motor gear="100 0 0" joint="chest" name="chest_x"/>
+        <motor gear="0 100 0" joint="chest" name="chest_y"/>
+        <motor gear="0 0 100" joint="chest" name="chest_z"/>
         <motor gear="50 0 0" joint="neck" name="neck_x"/>
         <motor gear="0 50 0" joint="neck" name="neck_y"/>
         <motor gear="0 0 50" joint="neck" name="neck_z"/>
@@ -108,18 +108,18 @@
         <motor gear="0 0 100" joint="left_shoulder" name="left_shoulder_z"/>
         <motor gear="60" joint="left_elbow" name="left_elbow"/>
 
-        <motor gear="200 0 0" joint="right_hip" name="right_hip_x"/>
-        <motor gear="0 200 0" joint="right_hip" name="right_hip_y"/>
-        <motor gear="0 0 200" joint="right_hip" name="right_hip_z"/>
+        <motor gear="100 0 0" joint="right_hip" name="right_hip_x"/>
+        <motor gear="0 100 0" joint="right_hip" name="right_hip_y"/>
+        <motor gear="0 0 100" joint="right_hip" name="right_hip_z"/>
 
         <motor gear="150" joint="right_knee" name="right_knee"/>
         <motor gear="90 0 0" joint="right_ankle" name="right_ankle_x"/>
         <motor gear="0 90 0" joint="right_ankle" name="right_ankle_y"/>
         <motor gear="0 0 90" joint="right_ankle" name="right_ankle_z"/>
 
-        <motor gear="200 0 0" joint="left_hip" name="left_hip_x"/>
-        <motor gear="0 200 0" joint="left_hip" name="left_hip_y"/>
-        <motor gear="0 0 200" joint="left_hip" name="left_hip_z"/>
+        <motor gear="100 0 0" joint="left_hip" name="left_hip_x"/>
+        <motor gear="0 100 0" joint="left_hip" name="left_hip_y"/>
+        <motor gear="0 0 100" joint="left_hip" name="left_hip_z"/>
         <motor gear="150" joint="left_knee" name="left_knee"/>
         <motor gear="90 0 0" joint="left_ankle" name="left_ankle_x"/>
         <motor gear="0 90 0" joint="left_ankle" name="left_ankle_y"/>

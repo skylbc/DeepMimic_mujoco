@@ -46,44 +46,14 @@ class HumanoindDPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 if __name__ == "__main__":
     env = HumanoindDPEnv()
 
-    mocap_filepath = '/home/mingfei/Documents/DeepMimic/mujoco/motions/humanoid3d_crawl.txt'
+    idx = 27
+    torque = np.zeros(env.action_space.shape)
+    torque[idx] = -1.0
+    while True:
+        env.step(torque)
+        env.render()
 
-    mocap = MocapDM()
-    mocap.load_mocap(mocap_filepath)
-
-    interface = MujocoInterface()
-    interface.init(env.sim, mocap.dt)
-
-    import time
-
-    round_idx = 0
-
-    update_time_int = 1.0/30
-    mocap_time_int = 0.0625
-
-    delta = 0.1 * 0.09
-
-    idx_mocap = 0
-
-    target_pos = mocap.data[0, 1:]
-    curr_pos = env.get_joint_configs()
-    err_pos = interface.calc_pos_err(curr_pos, target_pos)
-    torque = err_pos
-    target_pos = mocap.data[0, 1:]
-
-    # idx = 3
-    # torque = np.zeros(env.action_space.shape)
-    # torque[idx] = (np.random.rand() - 0.5) * 10
-
-    curr_time = 0.0
-
-    # idx += 1
-    # if idx >= env.action_space.shape[0]:
-    #     idx = 0
-    # torque = np.zeros(env.action_space.shape)
-    # torque[idx] = 1.0
-    torque = np.ones(env.action_space.shape)
-
+    '''
     while True:
         curr_time = env.get_time()
         # curr_time += 0.09
@@ -113,3 +83,4 @@ if __name__ == "__main__":
 
     # interface = MujocoInterface()
     # interface.init(env.sim, mocap.dt)
+    '''

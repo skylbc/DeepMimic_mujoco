@@ -69,6 +69,7 @@ def traj_segment_generator(pi, env, mocap_player, horizon, stochastic):
         prevacs[i] = prevac
 
         ob, true_rew, new, _ = env.step(ac)
+        # env.render()
 
         # if flag_render:
         #     mocap_player.show_frame(env.env.curr_frame)
@@ -427,7 +428,6 @@ def traj_1_generator(pi, env, horizon, stochastic):
 
     while True:
         ac, vpred = pi.act(stochastic, ob)
-        print(ac)
         obs.append(ob)
         news.append(new)
         acs.append(ac)
@@ -453,8 +453,8 @@ def traj_1_generator(pi, env, horizon, stochastic):
 def main(args):
     U.make_session(num_cpu=1).__enter__()
     set_global_seeds(args.seed)
-    # from dp_env import DPEnv
-    from dp_env_test import DPEnv
+    from dp_env import DPEnv
+    # from dp_env_test import DPEnv
     env = DPEnv()
     # env = gym.make(args.env_id)
 
