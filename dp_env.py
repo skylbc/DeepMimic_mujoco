@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import numpy as np
 import math
+import random
 from os import getcwd
 
 from mujoco.mocap import MocapDM
@@ -43,15 +44,24 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.scale_err = 1.0
 
         self.idx_mocap = 0
+        self.reference_state_init()
 
         mujoco_env.MujocoEnv.__init__(self, xml_file_path, 6)
         utils.EzPickle.__init__(self)
+
 
     def _get_obs(self):
         position = self.sim.data.qpos.flat.copy()
         velocity = self.sim.data.qvel.flat.copy()
         position = position[2:] # ignore x and y
         return np.concatenate((position, velocity))
+
+    def reference_state_init(self):
+        self.idx_init = random.randint(0, self.mocap_data_len-1)
+        self.idx_curr = 0
+
+    def early_termination(self):
+        pass
 
     def get_joint_configs(self):
         data = self.sim.data
@@ -64,20 +74,20 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
     def calc_reward(self):
         assert len(self.mocap.data) != 0
+        self.update_inteval = int(self.mocap_dt // self.dt)
+
         err_pose = 0.0
         err_vel = 0.0
         err_end_eff = 0.0
         err_root = 0.0
         err_com = 0.0
 
-        curr_time = self.get_time() * 6
-        self.idx_mocap = int(curr_time // self.mocap_dt) 
+        if self.idx_curr % self.update_inteval != 0:
+            return 0.0
+
+        self.idx_mocap = int(self.idx_curr // self.update_inteval) + self.idx_init
         target_mocap = self.mocap.data[self.idx_mocap % self.mocap_data_len, 1:]
         self.curr_frame = target_mocap
-
-        # target_mocap = self.mocap.data[self.idx_mocap%self.mocap_data_len, 1:]
-        # self.curr_frame = target_mocap
-        # self.idx_mocap += 1
 
         curr_configs = self.get_joint_configs()
 
@@ -107,17 +117,19 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
     def step(self, action):
         self.do_simulation(action, self.frame_skip)
+        self.idx_curr += 1
+
         observation = self._get_obs()
         reward = self.calc_reward()
         info = dict()
-
-        # TODO definition of done: problematic
-        if self.idx_mocap !=0 and self.idx_mocap % self.mocap_data_len == 0:
-            done = True
-        else:
-            done = False
+        done = self.is_done()
 
         return observation, reward, done, info
+
+    def is_done(self):
+        qpos = self.sim.data.qpos
+        done = bool((qpos[2] < 0.7) or (qpos[2] > 2.0))
+        return done
 
     def goto(self, pos):
         self.sim.data.qpos[:] = pos[:]
@@ -127,15 +139,16 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         return self.sim.data.time
 
     def reset_model(self):
-        noise_low = -1e-2
-        noise_high = 1e-2
-
-        qpos = self.init_qpos + self.np_random.uniform(
-            low=noise_low, high=noise_high, size=self.model.nq)
-        qvel = self.init_qvel + self.np_random.uniform(
-            low=noise_low, high=noise_high, size=self.model.nv)
+        self.reference_state_init()
+        qpos = self.mocap.data[self.idx_init, 1:]
+        if self.idx_init == self.mocap_data_len - 1: # init to last mocap frame
+            root_pos_err = np.array(self.mocap.data[self.idx_init, 1:4]) - np.array(self.mocap.data[self.idx_init-1, 1:4])
+            qpos_err = self.interface.calc_config_err(self.mocap.data[self.idx_init-1, 4:], self.mocap.data[self.idx_init, 4:])
+        else:
+            root_pos_err = np.array(self.mocap.data[self.idx_init+1, 1:4]) - np.array(self.mocap.data[self.idx_init, 1:4])
+            qpos_err = self.interface.calc_config_err(self.mocap.data[self.idx_init, 4:], self.mocap.data[self.idx_init+1, 4:])
+        qvel = np.concatenate((root_pos_err, qpos_err), axis=None) * 1.0 / self.mocap_dt
         self.set_state(qpos, qvel)
-
         observation = self._get_obs()
         return observation
 

@@ -122,7 +122,7 @@ class MujocoInterface(object):
         assert len(now_config) == len(next_config)
         err = []
 
-        for each_joint in BODY_JOINTS:
+        for each_joint in BODY_DEFS:
             curr_idx = offset_idx
             dof = DOF_DEF[each_joint]
             if dof == 1:
@@ -132,9 +132,13 @@ class MujocoInterface(object):
                 err += [(seg_1 - seg_0) * 1.0]
             elif dof == 3:
                 offset_idx += 4
+                if offset_idx == len(now_config):
+                    offset_idx = None
                 seg_0 = now_config[curr_idx:offset_idx]
                 seg_1 = next_config[curr_idx:offset_idx]
                 err += calc_angular_vel_from_quaternion(seg_0, seg_1, 1.0)
+            elif dof == 0:
+                pass
         return np.array(err)
 
     def calc_pos_err(self, now_pos, next_pos): # including root joint

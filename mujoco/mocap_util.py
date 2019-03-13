@@ -10,7 +10,7 @@ BODY_JOINTS_IN_DP_ORDER = ["chest", "neck", "right_hip", "right_knee",
                         "right_ankle", "right_shoulder", "right_elbow", "left_hip", 
                         "left_knee", "left_ankle", "left_shoulder", "left_elbow"]
 
-DOF_DEF = {"root": 6, "chest": 3, "neck": 3, "right_shoulder": 3, 
+DOF_DEF = {"root": 3, "chest": 3, "neck": 3, "right_shoulder": 3, 
            "right_elbow": 1, "right_wrist": 0, "left_shoulder": 3, "left_elbow": 1, 
            "left_wrist": 0, "right_hip": 3, "right_knee": 1, "right_ankle": 3, 
            "left_hip": 3, "left_knee": 1, "left_ankle": 3}
