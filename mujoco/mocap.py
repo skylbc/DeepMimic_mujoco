@@ -3,6 +3,7 @@ import os
 import json
 import copy
 import numpy as np
+from os import getcwd
 from pyquaternion import Quaternion
 from mujoco.mocap_util import align_position, align_rotation
 from mujoco.mocap_util import BODY_JOINTS, BODY_JOINTS_IN_DP_ORDER, DOF_DEF, BODY_DEFS
@@ -123,4 +124,5 @@ class MocapDM(object):
 
 if __name__ == "__main__":
     test = MocapDM()
-    test.play("/home/mingfei/Documents/DeepMimic/mujoco/motions/humanoid3d_crawl.txt")
+    curr_path = getcwd()
+    test.play(curr_path + "/mujoco/motions/humanoid3d_crawl.txt")
