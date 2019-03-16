@@ -116,7 +116,32 @@ class MujocoInterface(object):
     def align_ob_vel(self, ob_vel):
         return self.convert(ob_vel, mode='mujoco2dp', opt='vel')
 
-    def calc_config_err(self, now_config, next_config): # no root joint
+    def calc_config_err_vec(self, now_config, next_config): # no root joint
+        curr_idx = 0
+        offset_idx = 0
+        assert len(now_config) == len(next_config)
+        err = []
+
+        for each_joint in BODY_JOINTS:
+            curr_idx = offset_idx
+            dof = DOF_DEF[each_joint]
+            if dof == 1:
+                offset_idx += 1
+                seg_0 = now_config[curr_idx]
+                seg_1 = next_config[curr_idx]
+                err += [(seg_1 - seg_0) * 1.0]
+            elif dof == 3:
+                offset_idx += 4
+                if offset_idx == len(now_config):
+                    offset_idx = None
+                seg_0 = now_config[curr_idx:offset_idx]
+                seg_1 = next_config[curr_idx:offset_idx]
+                err += calc_angular_vel_from_quaternion(seg_0, seg_1, 1.0)
+            elif dof == 0:
+                pass
+        return np.array(err)
+
+    def calc_config_err_vec_with_root(self, now_config, next_config): # no root joint
         curr_idx = 0
         offset_idx = 0
         assert len(now_config) == len(next_config)
@@ -141,12 +166,12 @@ class MujocoInterface(object):
                 pass
         return np.array(err)
 
-    def calc_pos_err(self, now_pos, next_pos): # including root joint
+    def calc_config_errs(self, now_pos, next_pos): # including root joint
         curr_idx = 0
         offset_idx = 0
         assert len(now_pos) == len(next_pos)
         err = 0.0
-        for each_joint in BODY_DEFS:
+        for each_joint in BODY_JOINTS:
             curr_idx = offset_idx
             dof = DOF_DEF[each_joint]
             weight = JOINT_WEIGHT[each_joint]
@@ -164,10 +189,28 @@ class MujocoInterface(object):
                 err += abs(calc_diff_from_quaternion(seg_0, seg_1)) * 1.0 * weight
         return err
 
-    def calc_vel_err(self, now_pos, next_pos, dt): # including root joint
-        config_err = self.calc_config_err(now_pos[7:], next_pos[7:])
-        # config_err_root = self.
-        vel_err = config_err * 1.0 / dt
+    def calc_root_errs(self, curr_root, target_root): # including root joint
+        assert len(curr_root) == len(target_root)
+        assert len(curr_root) == 7
+
+        err = 0.0
+        err += sum(abs(curr_root[:3] - target_root[:3])*1.0 )
+
+        seg_0 = curr_root[3:7]
+        seg_1 = target_root[3:7]
+        err += abs(calc_diff_from_quaternion(seg_0, seg_1)) * 1.0
+        return err
+
+    def calc_vel_err_vec(self, now_vel, next_vel): # including root joint
+        vel_err = np.array(now_vel) - np.array(next_vel)
+        return vel_err
+
+    def calc_vel_errs(self, now_vel, next_vel):
+        assert len(now_vel) == len(next_vel)
+        err = 0.0
+        for vel1, vel2 in zip(now_vel, next_vel):
+            err += abs(vel1 - vel2)
+        return err
 
     def convert(self, input_val, mode, opt):
         assert opt in ['vel', 'pos']

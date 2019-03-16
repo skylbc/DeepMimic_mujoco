@@ -64,7 +64,15 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
     def get_joint_configs(self):
         data = self.sim.data
-        return data.qpos
+        return data.qpos[7:] # to exclude root joint
+
+    def get_joint_velocities(self):
+        data = self.sim.data
+        return data.qvel[6:] # to exclude root joint
+
+    def get_root_pos(self):
+        data = self.sim.data
+        return data.qpos[:7]
 
     def load_mocap(self, filepath):
         self.mocap.load_mocap(filepath)
@@ -85,18 +93,33 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
             return 0.0
 
         self.idx_mocap = int(self.idx_curr // self.update_inteval) + self.idx_init
-        target_mocap = self.mocap.data[self.idx_mocap % self.mocap_data_len, 1:]
-        self.curr_frame = target_mocap
+        self.idx_mocap = self.idx_mocap % self.mocap_data_len
 
+        target_config = self.mocap.data[self.idx_mocap, 1+7:] # to exclude root joint
+        self.curr_frame = target_config
         curr_configs = self.get_joint_configs()
 
-        err_pose = self.interface.calc_pos_err(curr_configs, target_mocap)
-        # err_vel = self.interface.calc_vel_err(curr_configs, target_mocap)
-        err_vel = 0.0
+        err_pose = self.interface.calc_config_errs(curr_configs, target_config)
+
+        if self.idx_mocap == self.mocap_data_len - 1: # init to last mocap frame
+            pos_prev = self.mocap.data[self.idx_mocap-1, 1+7:]
+            pos_curr = self.mocap.data[self.idx_mocap, 1+7:]
+        else:
+            pos_prev = self.mocap.data[self.idx_mocap, 1+7:]
+            pos_curr = self.mocap.data[self.idx_mocap+1, 1+7:]
+        vel_pos_err = self.interface.calc_config_err_vec(pos_prev, pos_curr)
+        curr_mocap_vel = vel_pos_err * 1.0 / self.mocap_dt
+        curr_vel = self.get_joint_velocities()
+
+        err_vel = self.interface.calc_vel_errs(curr_mocap_vel, curr_vel)
+
+        target_root = self.mocap.data[self.idx_mocap, 1: 1+7]
+        curr_root = self.get_root_pos()
+
+        err_root = self.interface.calc_root_errs(curr_root, target_root)
+
         # TODO
         err_end_eff =  0.0
-        # TODO
-        err_root = 0.0
         # TODO
         err_com = 0.0
 
@@ -110,7 +133,8 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         #      self.weight_end_eff * reward_end_eff + self.weight_root * reward_root + \
         #          self.weight_com * reward_com
 
-        reward = reward_pose
+        reward = self.weight_pose * reward_pose + self.weight_vel * reward_vel + \
+            self.weight_root * reward_root
 
         return reward
 
@@ -142,10 +166,10 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         qpos = self.mocap.data[self.idx_init, 1:]
         if self.idx_init == self.mocap_data_len - 1: # init to last mocap frame
             root_pos_err = np.array(self.mocap.data[self.idx_init, 1:4]) - np.array(self.mocap.data[self.idx_init-1, 1:4])
-            qpos_err = self.interface.calc_config_err(self.mocap.data[self.idx_init-1, 4:], self.mocap.data[self.idx_init, 4:])
+            qpos_err = self.interface.calc_config_err_vec_with_root(self.mocap.data[self.idx_init-1, 4:], self.mocap.data[self.idx_init, 4:])
         else:
             root_pos_err = np.array(self.mocap.data[self.idx_init+1, 1:4]) - np.array(self.mocap.data[self.idx_init, 1:4])
-            qpos_err = self.interface.calc_config_err(self.mocap.data[self.idx_init, 4:], self.mocap.data[self.idx_init+1, 4:])
+            qpos_err = self.interface.calc_config_err_vec_with_root(self.mocap.data[self.idx_init, 4:], self.mocap.data[self.idx_init+1, 4:])
         qvel = np.concatenate((root_pos_err, qpos_err), axis=None) * 1.0 / self.mocap_dt
         self.set_state(qpos, qvel)
         observation = self._get_obs()

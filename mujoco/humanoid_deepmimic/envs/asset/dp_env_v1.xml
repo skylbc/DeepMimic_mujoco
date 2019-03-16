@@ -62,7 +62,7 @@
                 <site name="joint_right_hip" pos="0 0 0" size="0.045" type="sphere"/>
                 <joint name="right_hip" pos="0 0 0" range="0 68.75" type="ball"/>
                 <body name="right_knee" pos="0 0 -0.421546">
-                    <geom fromto="0 0 -0.045 0 0 -0.355" name="right_knee" mass="3" size="0.05" type="capsule"/>
+                    <geom fromto="0 0 -0.045 0 0 -0.355" name="right_knee" mass="3.0" size="0.05" type="capsule"/>
                     <site name="joint_right_knee" pos="0 0 0" size="0.035" type="sphere"/>
                     <joint axis="0 -1 0" name="right_knee" pos="0 0 0" range="-150 0" stiffness="0" type="hinge"/>
                     <body name="right_ankle" pos="0 0 -0.40987">
