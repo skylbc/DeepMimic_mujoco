@@ -459,23 +459,24 @@ def main(args):
     # env = gym.make(args.env_id)
 
     task_name = get_task_short_name(args)
-    logger.configure(dir='log_trpo_mujoco/%s'%task_name)
 
     def policy_fn(name, ob_space, ac_space, reuse=False):
         return MlpPolicy(name=name, ob_space=ob_space, ac_space=ac_space,
                                     reuse=reuse, hid_size=args.policy_hidden_size, num_hid_layers=2)
-    import logging
-    import os.path as osp
-    import bench
-    env = bench.Monitor(env, logger.get_dir() and
-                        osp.join(logger.get_dir(), "monitor.json"))
-    env.seed(args.seed)
-    gym.logger.setLevel(logging.WARN)
-    task_name = get_task_short_name(args)
-    args.checkpoint_dir = osp.join(args.checkpoint_dir, task_name)
-    args.log_dir = osp.join(args.log_dir, task_name)
 
     if args.task == 'train':
+        import logging
+        import os.path as osp
+        import bench
+        logger.configure(dir='log_trpo_mujoco/%s'%task_name)
+        env = bench.Monitor(env, logger.get_dir() and
+                            osp.join(logger.get_dir(), "monitor.json"))
+        env.seed(args.seed)
+        gym.logger.setLevel(logging.WARN)
+        task_name = get_task_short_name(args)
+        args.checkpoint_dir = osp.join(args.checkpoint_dir, task_name)
+        args.log_dir = osp.join(args.log_dir, task_name)
+
         train(env,
               args.seed,
               policy_fn,
