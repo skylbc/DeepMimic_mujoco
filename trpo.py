@@ -245,7 +245,7 @@ def learn(env, policy_func, rank, *,
         for _ in range(g_step):
             with timed("sampling"):
                 seg = seg_gen.__next__()
-            print('rewards', seg['rew'])
+            # print('rewards', seg['rew'])
             add_vtarg_and_adv(seg, gamma, lam)
             # ob, ac, atarg, ret, td1ret = map(np.concatenate, (obs, acs, atargs, rets, td1rets))
             ob, ac, atarg, tdlamret = seg["ob"], seg["ac"], seg["adv"], seg["tdlamret"]
@@ -363,7 +363,7 @@ def train(env, seed, policy_fn, g_step, policy_entcoeff, pretrained_weight_path,
           max_timesteps=num_timesteps,
           ckpt_dir=checkpoint_dir, log_dir=log_dir,
           save_per_iter=save_per_iter,
-          timesteps_per_batch=1024,
+          timesteps_per_batch=256,
           max_kl=0.01, cg_iters=10, cg_damping=0.1,
           gamma=0.995, lam=0.97,
           vf_iters=5, vf_stepsize=1e-3,
