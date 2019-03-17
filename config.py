@@ -5,7 +5,8 @@ class Config(object):
                    'getup_faceup', 'jump', 'kick', 'punch', 'roll', 'run', 'spin', 'spinkick',
                    'walk']
     curr_path = getcwd()
-    motion = 'spinkick'
+    # motion = 'spinkick'
+    motion = 'walk'
     env_name = "dp_env_v1"
 
     motion_folder = '/mujoco/motions'
