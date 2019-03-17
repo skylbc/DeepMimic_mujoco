@@ -122,7 +122,7 @@ class MujocoInterface(object):
         assert len(now_config) == len(next_config)
         err = []
 
-        for each_joint in BODY_JOINTS:
+        for each_joint in BODY_DEFS:
             curr_idx = offset_idx
             dof = DOF_DEF[each_joint]
             if dof == 1:
@@ -171,7 +171,7 @@ class MujocoInterface(object):
         offset_idx = 0
         assert len(now_pos) == len(next_pos)
         err = 0.0
-        for each_joint in BODY_JOINTS:
+        for each_joint in BODY_DEFS:
             curr_idx = offset_idx
             dof = DOF_DEF[each_joint]
             weight = JOINT_WEIGHT[each_joint]
@@ -191,14 +191,11 @@ class MujocoInterface(object):
 
     def calc_root_errs(self, curr_root, target_root): # including root joint
         assert len(curr_root) == len(target_root)
-        assert len(curr_root) == 7
+        assert len(curr_root) == 3
 
         err = 0.0
         err += sum(abs(curr_root[:3] - target_root[:3])*1.0 )
 
-        seg_0 = curr_root[3:7]
-        seg_1 = target_root[3:7]
-        err += abs(calc_diff_from_quaternion(seg_0, seg_1)) * 1.0
         return err
 
     def calc_vel_err_vec(self, now_vel, next_vel): # including root joint
