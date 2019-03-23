@@ -93,8 +93,9 @@ class MocapDM(object):
     def play(self, mocap_filepath):
         from mujoco_py import load_model_from_xml, MjSim, MjViewer
 
-        xmlpath = '/home/mingfei/Documents/DeepMimic/mujoco/humanoid_deepmimic/envs/asset/dp_env_v1.xml'
-        with open(xmlpath) as fin:
+        curr_path = getcwd()
+        xmlpath = '/mujoco/humanoid_deepmimic/envs/asset/dp_env_v1.xml'
+        with open(curr_path + xmlpath) as fin:
             MODEL_XML = fin.read()
 
         model = load_model_from_xml(MODEL_XML)
@@ -125,4 +126,4 @@ class MocapDM(object):
 if __name__ == "__main__":
     test = MocapDM()
     curr_path = getcwd()
-    test.play(curr_path + "/mujoco/motions/humanoid3d_crawl.txt")
+    test.play(curr_path + "/mujoco/motions/humanoid3d_backflip.txt")

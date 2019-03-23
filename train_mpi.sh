@@ -1,0 +1,1 @@
+mpirun -np 20 python3 trpo.py
