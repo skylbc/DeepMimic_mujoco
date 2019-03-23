@@ -466,7 +466,7 @@ def main(args):
         import os.path as osp
         import bench
         if MPI is None or MPI.COMM_WORLD.Get_rank() == 0:
-            logger.configure(dir='log_trpo_mujoco/%s'%task_name)
+            logger.configure(dir='log_tmp/%s'%task_name)
         if MPI.COMM_WORLD.Get_rank() != 0:
             logger.set_level(logger.DISABLED)
         env = bench.Monitor(env, logger.get_dir() and
@@ -504,7 +504,7 @@ def argsparser():
     parser = argparse.ArgumentParser("Tensorflow Implementation of GAIL")
     parser.add_argument('--env_id', help='environment ID', default='DeepMimic')
     parser.add_argument('--seed', help='RNG seed', type=int, default=0)
-    parser.add_argument('--checkpoint_dir', help='the directory to save model', default='checkpoint')
+    parser.add_argument('--checkpoint_dir', help='the directory to save model', default='checkpoint_tmp')
     parser.add_argument('--log_dir', help='the directory to save log file', default='log')
     parser.add_argument('--load_model_path', help='if provided, load the model', type=str, default=None)
     # Task

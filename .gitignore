@@ -1,3 +1,6 @@
+log_tmp/
+checkpoint/
+
 .vscode/
 *.pyc
 
