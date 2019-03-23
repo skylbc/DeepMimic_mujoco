@@ -101,7 +101,7 @@ def add_vtarg_and_adv(seg, gamma, lam):
     seg["tdlamret"] = seg["adv"] + seg["vpred"]
 
 
-def learn(env, policy_func, rank, *,
+def learn(env, policy_func, *,
           pretrained_weight_path, g_step, entcoeff, save_per_iter,
           ckpt_dir, log_dir, timesteps_per_batch, task_name,
           gamma, lam,
@@ -351,13 +351,10 @@ def get_task_short_name(args):
 def train(env, seed, policy_fn, g_step, policy_entcoeff, pretrained_weight_path,
           num_timesteps, save_per_iter, checkpoint_dir, log_dir, task_name=None):
 
-    rank = MPI.COMM_WORLD.Get_rank()
-    if rank != 0:
-        logger.set_level(logger.DISABLED)
     workerseed = seed + 10000 * MPI.COMM_WORLD.Get_rank()
     set_global_seeds(workerseed)
     env.seed(workerseed)
-    learn(env, policy_fn, rank, 
+    learn(env, policy_fn, 
           pretrained_weight_path=pretrained_weight_path,
           g_step=g_step, entcoeff=policy_entcoeff,
           max_timesteps=num_timesteps,
@@ -468,7 +465,10 @@ def main(args):
         import logging
         import os.path as osp
         import bench
-        logger.configure(dir='log_trpo_mujoco/%s'%task_name)
+        if MPI is None or MPI.COMM_WORLD.Get_rank() == 0:
+            logger.configure(dir='log_trpo_mujoco/%s'%task_name)
+        if MPI.COMM_WORLD.Get_rank() != 0:
+            logger.set_level(logger.DISABLED)
         env = bench.Monitor(env, logger.get_dir() and
                             osp.join(logger.get_dir(), "monitor.json"))
         env.seed(args.seed)
