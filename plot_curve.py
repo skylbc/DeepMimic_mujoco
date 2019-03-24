@@ -19,14 +19,13 @@ matplotlib.rc('ytick', labelsize=font_size)
 
 def argsparser():
     parser = argparse.ArgumentParser("Plotting lines")
-    parser.add_argument('--env_id', help='env', default='CartPole')
-    parser.add_argument('--num_timesteps', help='timesteps to draw', type=int, default=1e5)
+    parser.add_argument('--env_id', help='env', default='DeepMimic')
     parser.add_argument('--legend', help='legend', type=int, default=1)
     return parser.parse_args()
 
 def main(args):
     env_name = args.env_id.split("_")[0]
-    dir_path = 'log_trpo_mujoco/%s'%(args.env_id)
+    dir_path = 'log_tmp/%s'%(args.env_id)
     results = pu.load_results(dir_path)
 
     pu.plot_results(results, 
@@ -35,7 +34,7 @@ def main(args):
                     # disables splitting; all curves end up on the same panel
                     figsize=(8, 8),
                     # legend_outside=True,
-                    num_timesteps=args.num_timesteps,
+                    # num_timesteps=args.num_timesteps,
                     font_size=font_size,
                     shaded_std=False, 
                     legend=args.legend)
@@ -45,7 +44,7 @@ def main(args):
     plt.tight_layout()
     params = {'legend.fontsize': font_size}
     plt.rcParams.update(params)
-    fig_name = "figures/%s-%d.svg"%(args.env_id, args.num_timesteps)
+    fig_name = "figures/%s-reward.svg"%(args.env_id)
     plt.savefig(fig_name)
     # plt.show()
 

@@ -249,7 +249,7 @@ def plot_results(
     legend_outside=False,
     resample=0,
     smooth_step=1.0,
-    num_timesteps=1e4,
+    num_timesteps=1e8,
     font_size, 
     legend=True
 ):

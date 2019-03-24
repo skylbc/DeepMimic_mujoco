@@ -24,12 +24,7 @@ from mlp_policy_trpo import MlpPolicy
 
 from config import Config
 
-global flag_render
-flag_render = False
-
 def traj_segment_generator(pi, env, mocap_player, horizon, stochastic):
-    global flag_render
-
     # Initialize state variables
     t = 0
     ac = env.action_space.sample()
@@ -70,9 +65,6 @@ def traj_segment_generator(pi, env, mocap_player, horizon, stochastic):
 
         ob, true_rew, new, _ = env.step(ac)
         # env.render()
-
-        # if flag_render:
-        #     mocap_player.show_frame(env.env.curr_frame)
 
         rews[i] = true_rew
 
@@ -231,12 +223,6 @@ def learn(env, policy_func, *,
             saver.save(tf.get_default_session(), fname)
 
         logger.log("********** Iteration %i ************" % iters_so_far)
-
-        # global flag_render
-        # if iters_so_far > 0 and iters_so_far % 1 ==0:
-        #     flag_render = True
-        # else:
-        #     flag_render = False
 
         def fisher_vector_product(p):
             return allmean(compute_fvp(p, *fvpargs)) + cg_damping * p
@@ -450,8 +436,8 @@ def traj_1_generator(pi, env, horizon, stochastic):
 def main(args):
     U.make_session(num_cpu=1).__enter__()
     set_global_seeds(args.seed)
-    from dp_env import DPEnv
-    # from dp_env_test import DPEnv
+    # from dp_env import DPEnv
+    from dp_env_test import DPEnv
     env = DPEnv()
     # env = gym.make(args.env_id)
 
