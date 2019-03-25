@@ -9,7 +9,7 @@ from gym import utils
 
 class HumanoindDPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def __init__(self):
-        file_path = '/home/mingfei/Documents/DeepMimic/mujoco/humanoid_deepmimic/envs/asset/dp_env_v1.xml'
+        file_path = '/home/mingfei/Documents/DeepMimic/mujoco/humanoid_deepmimic/envs/asset/dp_env_v2.xml'
         mujoco_env.MujocoEnv.__init__(self, file_path, 30)
         utils.EzPickle.__init__(self)
 
@@ -45,10 +45,11 @@ class HumanoindDPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
 if __name__ == "__main__":
     env = HumanoindDPEnv()
+    import time
 
     idx = 27
     torque = np.zeros(env.action_space.shape)
-    torque[idx] = -1.0
+    torque[idx] = 1
     while True:
         env.step(torque)
         env.render()

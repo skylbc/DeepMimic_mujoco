@@ -436,10 +436,10 @@ def traj_1_generator(pi, env, horizon, stochastic):
 def main(args):
     U.make_session(num_cpu=1).__enter__()
     set_global_seeds(args.seed)
-    # from dp_env import DPEnv
+    from dp_env import DPEnv
     # from dp_env_test import DPEnv
-    # env = DPEnv()
-    env = gym.make('Humanoid-v2')
+    env = DPEnv()
+    # env = gym.make('Humanoid-v2')
 
     task_name = get_task_short_name(args)
 
