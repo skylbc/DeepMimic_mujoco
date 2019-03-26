@@ -58,8 +58,25 @@ class MocapDM(object):
         self.all_states = all_states
         self.durations = durations
 
+    def calc_single_config_diff(self, seg_0, seg_1):
+        q_0 = Quaternion(seg_0[0], seg_0[1], seg_0[2], seg_0[3])
+        q_1 = Quaternion(seg_1[0], seg_1[1], seg_1[2], seg_1[3])
+
+        q_diff =  q_0.conjugate * q_1
+        # q_diff =  q_1 * q_0.conjugate
+        axis = q_diff.axis
+        angle = q_diff.angle
+        
+        tmp_diff = angle * axis
+        diff_angular = [tmp_diff[0], tmp_diff[1], tmp_diff[2]]
+
+        return diff_angular
+
     def convert_raw_data(self):
+        self.data_vel = []
+
         for k in range(len(self.all_states)):
+            tmp_vel = []
             state = self.all_states[k]
             dura = self.durations[k]
 
@@ -72,11 +89,19 @@ class MocapDM(object):
             init_idx = offset_idx
             offset_idx += 3
             self.data[k, init_idx:offset_idx] = np.array(state['root_pos'])
+            if k == 0:
+                tmp_vel += [0.0, 0.0, 0.0]
+            else:
+                tmp_vel += (self.data[k, init_idx:offset_idx] - self.data[k-1, init_idx:offset_idx]).tolist()
 
             # root rot
             init_idx = offset_idx
             offset_idx += 4
             self.data[k, init_idx:offset_idx] = np.array(state['root_rot'])
+            if k == 0:
+                tmp_vel += [0.0, 0.0, 0.0]
+            else:
+                tmp_vel += self.calc_single_config_diff(self.data[k, init_idx:offset_idx], self.data[k-1, init_idx:offset_idx]).tolist()
 
             for each_joint in BODY_JOINTS:
                 init_idx = offset_idx

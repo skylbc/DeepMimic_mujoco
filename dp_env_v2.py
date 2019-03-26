@@ -13,14 +13,39 @@ from gym.envs.mujoco import mujoco_env
 from gym import utils
 
 from config import Config
+from pyquaternion import Quaternion
 
-# TODO: load mocap data; calc rewards
-# TODO: early stop
+BODY_JOINTS = ["chest", "neck", "right_shoulder", "right_elbow", 
+            "left_shoulder", "left_elbow", "right_hip", "right_knee", 
+            "right_ankle", "left_hip", "left_knee", "left_ankle"]
+
+DOF_DEF = {"root": 3, "chest": 3, "neck": 3, "right_shoulder": 3, 
+           "right_elbow": 1, "right_wrist": 0, "left_shoulder": 3, "left_elbow": 1, 
+           "left_wrist": 0, "right_hip": 3, "right_knee": 1, "right_ankle": 3, 
+           "left_hip": 3, "left_knee": 1, "left_ankle": 3}
 
 def mass_center(model, sim):
     mass = np.expand_dims(model.body_mass, 1)
     xpos = sim.data.xipos
     return (np.sum(mass * xpos, 0) / np.sum(mass))[0]
+
+def degree2quaternion(theta_x, theta_y, theta_z):
+    rot_x = np.array([[ 1,         0,                0          ], 
+                      [ 0, math.cos(theta_x), -math.sin(theta_x)], 
+                      [ 0, math.sin(theta_x),  math.cos(theta_x)]])
+
+    rot_y = np.array([[ math.cos(theta_y), 0,  math.sin(theta_y)], 
+                      [        0,          1,       0        ], 
+                      [-math.sin(theta_y), 0,  math.cos(theta_y)]])
+
+    rot_z = np.array([[math.cos(theta_z), -math.sin(theta_z), 0 ], 
+                      [math.sin(theta_z),  math.cos(theta_z), 0 ],
+                      [      0,                    0,         1 ]])
+
+    rot = np.matmul(rot_x, rot_y)
+    rot = np.matmul(rot, rot_z)
+
+    return Quaternion(matrix=rot)
 
 class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def __init__(self):
@@ -79,6 +104,47 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.mocap_dt = self.mocap.dt
         self.mocap_data_len = len(self.mocap.data)
 
+    def calc_single_config_diff(self, seg_env, seg_mocap):
+        q_0 = degree2quaternion(seg_env[0], seg_env[1], seg_env[2])
+        q_1 = Quaternion(seg_mocap[0], seg_mocap[1], seg_mocap[2], seg_mocap[3])
+
+        q_diff =  q_0.conjugate * q_1
+        # q_diff =  q_1 * q_0.conjugate
+        axis = q_diff.axis
+        angle = q_diff.angle
+        
+        tmp_vel = angle * axis
+        vel_angular = [tmp_vel[0], tmp_vel[1], tmp_vel[2]]
+
+        return vel_angular
+
+    def calc_config_diff(self, env_config, mocap_config):
+        curr_idx_env = 0
+        curr_idx_mocap = 0
+        offset_idx_env = 0 
+        offset_idx_mocap = 0
+
+        err = []
+
+        for each_joint in BODY_JOINTS:
+            curr_idx_env = offset_idx_env
+            curr_idx_mocap = offset_idx_mocap
+
+            dof = DOF_DEF[each_joint]
+            if dof == 1:
+                offset_idx_env += 1
+                offset_idx_mocap += 1
+                seg_0 = env_config[curr_idx_env:offset_idx_env]
+                seg_1 = mocap_config[curr_idx_mocap:offset_idx_mocap]
+                err += [(seg_1 - seg_0) * 1.0]
+            elif dof == 3:
+                offset_idx_env += 3
+                offset_idx_mocap += 4
+                seg_0 = env_config[curr_idx_env:offset_idx_env]
+                seg_1 = mocap_config[curr_idx_mocap:offset_idx_mocap]
+                err += self.calc_single_config_diff(seg_env=seg_0, seg_mocap=seg_1)
+        return np.array(err)
+
     def calc_reward(self):
         assert len(self.mocap.data) != 0
         self.update_inteval = int(self.mocap_dt // self.dt)
@@ -99,7 +165,7 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.curr_frame = target_config
         curr_configs = self.get_joint_configs()
 
-        err_pose = self.interface.calc_config_errs(curr_configs, target_config)
+        config_diff = self.calc_config_diff(curr_configs, target_config)
 
         if self.idx_mocap == self.mocap_data_len - 1: # init to last mocap frame
             pos_prev = self.mocap.data[self.idx_mocap-1, 1+3:]
