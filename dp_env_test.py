@@ -3,7 +3,7 @@ import numpy as np
 import math
 from os import getcwd
 
-from mujoco.mocap import MocapDM
+from mujoco.mocap_v2 import MocapDM
 from mujoco.mujoco_interface import MujocoInterface
 from mujoco.mocap_util import JOINT_WEIGHT
 from mujoco_py import load_model_from_xml, MjSim, MjViewer

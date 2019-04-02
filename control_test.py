@@ -9,7 +9,7 @@ from gym import utils
 
 class HumanoindDPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def __init__(self):
-        file_path = '/home/mingfei/Documents/DeepMimic/mujoco/humanoid_deepmimic/envs/asset/dp_env_v2.xml'
+        file_path = '/home/mingfei/Documents/DeepMimic/mujoco/humanoid_deepmimic/envs/asset/dp_env_v1.xml'
         mujoco_env.MujocoEnv.__init__(self, file_path, 30)
         utils.EzPickle.__init__(self)
 
@@ -47,9 +47,43 @@ if __name__ == "__main__":
     env = HumanoindDPEnv()
     import time
 
-    idx = 27
-    torque = np.zeros(env.action_space.shape)
-    torque[idx] = 1
+    chest_x = 0
+    chest_y = 1
+    chest_z = 2
+    neck_x = 3
+    neck_y = 4
+    neck_z = 5
+
+    right_shoulder_x = 6
+    right_shoulder_y = 7
+    right_shoulder_z = 8
+    right_elbow = 9
+
+    left_shoulder_x = 10
+    left_shoulder_y = 11
+    left_shoulder_z = 12
+    left_elbow = 13
+
+    right_hip_x = 14
+    right_hip_y = 15
+    right_hip_z = 16
+
+    right_knee = 17
+    right_ankle_x = 18
+    right_ankle_y = 19
+    right_ankle_z = 20
+
+    left_hip_x = 21
+    left_hip_y = 22
+    left_hip_z = 23
+    left_knee = 24
+    left_ankle_x = 25
+    left_ankle_y = 26
+    left_ankle_z = 27
+
+    idx = right_shoulder_x
+    torque = np.ones(env.action_space.shape)
+    torque[idx] = -1 * torque[idx]
     while True:
         env.step(torque)
         env.render()
