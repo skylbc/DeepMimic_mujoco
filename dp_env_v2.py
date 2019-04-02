@@ -24,6 +24,14 @@ DOF_DEF = {"root": 3, "chest": 3, "neck": 3, "right_shoulder": 3,
            "left_wrist": 0, "right_hip": 3, "right_knee": 1, "right_ankle": 3, 
            "left_hip": 3, "left_knee": 1, "left_ankle": 3}
 
+def quat2euler(quat):
+    elements = quat.elements
+    q0, q1, q2, q3 = elements[0], elements[1], elements[2], elements[3]
+    phi = math.atan2(2.0*(q0*q1+q2*q3), 1.0-2.0*(q1*q1+q2*q2))
+    theta = math.asin(2.0*(q0*q2-q3*q1))
+    psi = math.atan2(2.0*(q0*q3+q1*q2), 1.0-2.0*(q2*q2+q3*q3))
+    return phi, theta, psi
+
 def mass_center(model, sim):
     mass = np.expand_dims(model.body_mass, 1)
     xpos = sim.data.xipos
@@ -118,7 +126,7 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
         return vel_angular
 
-    def calc_config_diff(self, env_config, mocap_config):
+    def calc_config_errs(self, env_config, mocap_config):
         curr_idx_env = 0
         curr_idx_mocap = 0
         offset_idx_env = 0 
@@ -140,20 +148,30 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
             elif dof == 3:
                 offset_idx_env += 3
                 offset_idx_mocap += 4
-                seg_0 = env_config[curr_idx_env:offset_idx_env]
-                seg_1 = mocap_config[curr_idx_mocap:offset_idx_mocap]
-                err += self.calc_single_config_diff(seg_env=seg_0, seg_mocap=seg_1)
-        return np.array(err)
+                seg_env = env_config[curr_idx_env:offset_idx_env]
+                seg_mocap = mocap_config[curr_idx_mocap:offset_idx_mocap]
+                err += self.calc_single_config_diff(seg_env=seg_env, seg_mocap=seg_mocap)
+        return sum(abs(err))
+
+    def calc_vel_errs(self, now_vel, next_vel):
+        assert len(now_vel) == len(next_vel)
+        err = sum(abs(np.array(now_vel) - np.array(next_vel)))
+        return err
+
+    def calc_root_errs(self, curr_root, target_root): # including root joint
+        assert len(curr_root) == len(target_root)
+        assert len(curr_root) == 3
+        return np.sum(abs(curr_root - target_root))
 
     def calc_reward(self):
         assert len(self.mocap.data) != 0
         self.update_inteval = int(self.mocap_dt // self.dt)
 
-        err_pose = 0.0
+        err_configs = 0.0
         err_vel = 0.0
-        err_end_eff = 0.0
+        # err_end_eff = 0.0
         err_root = 0.0
-        err_com = 0.0
+        # err_com = 0.0
 
         if self.idx_curr % self.update_inteval != 0:
             return 0.0
@@ -165,35 +183,27 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.curr_frame = target_config
         curr_configs = self.get_joint_configs()
 
-        config_diff = self.calc_config_diff(curr_configs, target_config)
+        err_configs = self.calc_config_errs(curr_configs, target_config)
 
-        if self.idx_mocap == self.mocap_data_len - 1: # init to last mocap frame
-            pos_prev = self.mocap.data[self.idx_mocap-1, 1+3:]
-            pos_curr = self.mocap.data[self.idx_mocap, 1+3:]
-        else:
-            pos_prev = self.mocap.data[self.idx_mocap, 1+3:]
-            pos_curr = self.mocap.data[self.idx_mocap+1, 1+3:]
-
-        vel_pos_err = self.interface.calc_config_err_vec(pos_prev, pos_curr)
-        curr_mocap_vel = vel_pos_err * 1.0 / self.mocap_dt
+        curr_mocap_vel = self.mocap.data_vel[self.idx_mocap]
         curr_vel = self.get_joint_velocities()
 
-        err_vel = self.interface.calc_vel_errs(curr_mocap_vel, curr_vel)
+        err_vel = self.calc_vel_errs(curr_mocap_vel, curr_vel)
 
         target_root = self.mocap.data[self.idx_mocap, 1: 1+3]
         curr_root = self.get_root_pos()
 
-        err_root = self.interface.calc_root_errs(curr_root, target_root)
+        err_root = self.calc_root_errs(curr_root, target_root)
 
-        # TODO
-        err_end_eff =  0.0
-        reward_end_eff  = math.exp(-self.scale_err * self.scale_end_eff * err_end_eff)
+        ## TODO
+        # err_end_eff =  0.0
+        # reward_end_eff  = math.exp(-self.scale_err * self.scale_end_eff * err_end_eff)
 
-        # TODO
-        err_com = 0.0
-        reward_com      = math.exp(-self.scale_err * self.scale_com * err_com)
+        ## TODO
+        # err_com = 0.0
+        # reward_com      = math.exp(-self.scale_err * self.scale_com * err_com)
 
-        reward_pose     = math.exp(-self.scale_err * self.scale_pose * err_pose)
+        reward_pose     = math.exp(-self.scale_err * self.scale_pose * err_configs)
         reward_vel      = math.exp(-self.scale_err * self.scale_vel * err_vel)
         reward_root     = math.exp(-self.scale_err * self.scale_root * err_root)
 
