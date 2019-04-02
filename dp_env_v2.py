@@ -4,7 +4,7 @@ import math
 import random
 from os import getcwd
 
-from mujoco.mocap import MocapDM
+from mujoco.mocap_v2 import MocapDM
 from mujoco.mujoco_interface import MujocoInterface
 from mujoco.mocap_util import JOINT_WEIGHT
 from mujoco_py import load_model_from_xml, MjSim, MjViewer
@@ -15,6 +15,8 @@ from gym import utils
 from config import Config
 from pyquaternion import Quaternion
 
+from transformations import quaternion_from_euler
+
 BODY_JOINTS = ["chest", "neck", "right_shoulder", "right_elbow", 
             "left_shoulder", "left_elbow", "right_hip", "right_knee", 
             "right_ankle", "left_hip", "left_knee", "left_ankle"]
@@ -24,36 +26,10 @@ DOF_DEF = {"root": 3, "chest": 3, "neck": 3, "right_shoulder": 3,
            "left_wrist": 0, "right_hip": 3, "right_knee": 1, "right_ankle": 3, 
            "left_hip": 3, "left_knee": 1, "left_ankle": 3}
 
-def quat2euler(quat):
-    elements = quat.elements
-    q0, q1, q2, q3 = elements[0], elements[1], elements[2], elements[3]
-    phi = math.atan2(2.0*(q0*q1+q2*q3), 1.0-2.0*(q1*q1+q2*q2))
-    theta = math.asin(2.0*(q0*q2-q3*q1))
-    psi = math.atan2(2.0*(q0*q3+q1*q2), 1.0-2.0*(q2*q2+q3*q3))
-    return phi, theta, psi
-
 def mass_center(model, sim):
     mass = np.expand_dims(model.body_mass, 1)
     xpos = sim.data.xipos
     return (np.sum(mass * xpos, 0) / np.sum(mass))[0]
-
-def degree2quaternion(theta_x, theta_y, theta_z):
-    rot_x = np.array([[ 1,         0,                0          ], 
-                      [ 0, math.cos(theta_x), -math.sin(theta_x)], 
-                      [ 0, math.sin(theta_x),  math.cos(theta_x)]])
-
-    rot_y = np.array([[ math.cos(theta_y), 0,  math.sin(theta_y)], 
-                      [        0,          1,       0        ], 
-                      [-math.sin(theta_y), 0,  math.cos(theta_y)]])
-
-    rot_z = np.array([[math.cos(theta_z), -math.sin(theta_z), 0 ], 
-                      [math.sin(theta_z),  math.cos(theta_z), 0 ],
-                      [      0,                    0,         1 ]])
-
-    rot = np.matmul(rot_x, rot_y)
-    rot = np.matmul(rot, rot_z)
-
-    return Quaternion(matrix=rot)
 
 class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def __init__(self):
@@ -78,6 +54,7 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
         self.idx_mocap = 0
         self.reference_state_init()
+        self.idx_curr = -1
 
         mujoco_env.MujocoEnv.__init__(self, xml_file_path, 6)
         utils.EzPickle.__init__(self)
@@ -112,46 +89,9 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.mocap_dt = self.mocap.dt
         self.mocap_data_len = len(self.mocap.data)
 
-    def calc_single_config_diff(self, seg_env, seg_mocap):
-        q_0 = degree2quaternion(seg_env[0], seg_env[1], seg_env[2])
-        q_1 = Quaternion(seg_mocap[0], seg_mocap[1], seg_mocap[2], seg_mocap[3])
-
-        q_diff =  q_0.conjugate * q_1
-        # q_diff =  q_1 * q_0.conjugate
-        axis = q_diff.axis
-        angle = q_diff.angle
-        
-        tmp_vel = angle * axis
-        vel_angular = [tmp_vel[0], tmp_vel[1], tmp_vel[2]]
-
-        return vel_angular
-
     def calc_config_errs(self, env_config, mocap_config):
-        curr_idx_env = 0
-        curr_idx_mocap = 0
-        offset_idx_env = 0 
-        offset_idx_mocap = 0
-
-        err = []
-
-        for each_joint in BODY_JOINTS:
-            curr_idx_env = offset_idx_env
-            curr_idx_mocap = offset_idx_mocap
-
-            dof = DOF_DEF[each_joint]
-            if dof == 1:
-                offset_idx_env += 1
-                offset_idx_mocap += 1
-                seg_0 = env_config[curr_idx_env:offset_idx_env]
-                seg_1 = mocap_config[curr_idx_mocap:offset_idx_mocap]
-                err += [(seg_1 - seg_0) * 1.0]
-            elif dof == 3:
-                offset_idx_env += 3
-                offset_idx_mocap += 4
-                seg_env = env_config[curr_idx_env:offset_idx_env]
-                seg_mocap = mocap_config[curr_idx_mocap:offset_idx_mocap]
-                err += self.calc_single_config_diff(seg_env=seg_env, seg_mocap=seg_mocap)
-        return sum(abs(err))
+        assert len(env_config) == len(mocap_config)
+        return np.sum(np.abs(env_config - mocap_config))
 
     def calc_vel_errs(self, now_vel, next_vel):
         assert len(now_vel) == len(next_vel)
@@ -165,7 +105,8 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
     def calc_reward(self):
         assert len(self.mocap.data) != 0
-        self.update_inteval = int(self.mocap_dt // self.dt)
+        # self.update_inteval = int(self.mocap_dt // self.dt)
+        self.update_inteval = 1
 
         err_configs = 0.0
         err_vel = 0.0
@@ -179,13 +120,13 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.idx_mocap = int(self.idx_curr // self.update_inteval) + self.idx_init
         self.idx_mocap = self.idx_mocap % self.mocap_data_len
 
-        target_config = self.mocap.data[self.idx_mocap, 1+3:] # to exclude root joint
+        target_config = self.mocap.data_angle[self.idx_mocap][3:] # to exclude root joint
         self.curr_frame = target_config
-        curr_configs = self.get_joint_configs()
+        curr_config = self.get_joint_configs()
 
-        err_configs = self.calc_config_errs(curr_configs, target_config)
+        err_configs = self.calc_config_errs(curr_config, target_config)
 
-        curr_mocap_vel = self.mocap.data_vel[self.idx_mocap]
+        curr_mocap_vel = self.mocap.data_vel[self.idx_mocap][3:] # to exclude root joint
         curr_vel = self.get_joint_velocities()
 
         err_vel = self.calc_vel_errs(curr_mocap_vel, curr_vel)
@@ -271,12 +212,13 @@ if __name__ == "__main__":
     action_size = env.action_space.shape[0]
     ac = np.zeros(action_size)
     print(action_size)
-    curr_idx = 0
+    curr_idx = env.idx_init
     while True:
         curr_idx = curr_idx % env.mocap_data_len
-        target_config = env.mocap.data[curr_idx, 1+2:] # to exclude root joint
-        env.sim.data.qpos[2:] = target_config[:]
+        target_config = env.mocap.data_angle[curr_idx][:] # to exclude root joint
+        env.sim.data.qpos[:] = target_config[:]
         env.sim.forward()
-        print(env.sim.data.qvel)
+        print(env.calc_reward())
         env.render()
         curr_idx +=1
+        env.idx_curr += 1
