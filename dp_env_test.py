@@ -24,8 +24,6 @@ def mass_center(model, sim):
 class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def __init__(self):
         xml_file_path = Config.xml_path
-        # import pdb 
-        # pdb.set_trace()
         mujoco_env.MujocoEnv.__init__(self, xml_file_path, 5)
         utils.EzPickle.__init__(self)
 

@@ -349,7 +349,7 @@ def train(env, seed, policy_fn, g_step, policy_entcoeff, pretrained_weight_path,
           timesteps_per_batch=256,
           max_kl=0.01, cg_iters=10, cg_damping=0.1,
           gamma=0.995, lam=0.97,
-          vf_iters=5, vf_stepsize=1e-3,
+          vf_iters=3, vf_stepsize=1e-3,
           task_name=task_name)
 
 def runner(env, policy_func, load_model_path, timesteps_per_batch, number_trajs,
@@ -436,7 +436,8 @@ def traj_1_generator(pi, env, horizon, stochastic):
 def main(args):
     U.make_session(num_cpu=1).__enter__()
     set_global_seeds(args.seed)
-    from dp_env_v2 import DPEnv
+    # from dp_env_v2 import DPEnv
+    from dp_env_v3 import DPEnv
     # from dp_env_test import DPEnv
     env = DPEnv()
     # env = gym.make('Humanoid-v2')
