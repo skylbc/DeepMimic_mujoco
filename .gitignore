@@ -1,5 +1,4 @@
 log_tmp/
-checkpoint/
 
 .vscode/
 *.pyc
@@ -30,3 +29,4 @@ lib/
 external/
 Backup/
 data/intermediate/
+checkpoint_tmp/

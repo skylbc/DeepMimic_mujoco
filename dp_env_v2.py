@@ -41,8 +41,8 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
         self.weight_pose = 0.5
         self.weight_vel = 0.05
-        self.weight_end_eff = 0.15
         self.weight_root = 0.2
+        self.weight_end_eff = 0.15
         self.weight_com = 0.1
 
         self.scale_pose = 2.0
@@ -82,7 +82,7 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
     def get_root_pos(self):
         data = self.sim.data
-        return data.qpos[:7] # translation & rotation
+        return data.qpos[2:7] # translation & rotation
 
     def load_mocap(self, filepath):
         self.mocap.load_mocap(filepath)
@@ -100,28 +100,28 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
     def calc_root_errs(self, curr_root, target_root): # including root joint
         assert len(curr_root) == len(target_root)
-        assert len(curr_root) == 7
+        assert len(curr_root) == 5
 
-        trans_curr = curr_root[:3]
-        trans_target = target_root[:3]
+        z_curr = curr_root[0]
+        z_target = target_root[0]
 
-        q_0 = Quaternion(curr_root[3], curr_root[4], curr_root[5], curr_root[6])
-        q_1 = Quaternion(target_root[3], target_root[4], target_root[5], target_root[6])
+        q_0 = Quaternion(curr_root[1], curr_root[2], curr_root[3], curr_root[4])
+        q_1 = Quaternion(target_root[1], target_root[2], target_root[3], target_root[4])
 
         q_diff =  q_0.conjugate * q_1
         tmp_diff = q_diff.angle
 
-        return np.sum(abs(trans_curr - trans_target)) + abs(tmp_diff)
+        return abs(z_curr - z_target) + abs(tmp_diff)
 
     def calc_reward(self):
         assert len(self.mocap.data) != 0
-        # self.update_inteval = int(self.mocap_dt // self.dt)
-        self.update_inteval = 1
+        self.update_inteval = int(self.mocap_dt // self.dt)
+        # self.update_inteval = 1
 
         err_configs = 0.0
         err_vel = 0.0
-        # err_end_eff = 0.0
         err_root = 0.0
+        # err_end_eff = 0.0
         # err_com = 0.0
 
         if self.idx_curr % self.update_inteval != 0:
@@ -135,17 +135,18 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         curr_config = self.get_joint_configs()
 
         err_configs = self.calc_config_errs(curr_config, target_config)
+        # print('Error configs: ', err_configs)
 
         curr_mocap_vel = self.mocap.data_vel[self.idx_mocap][3:] # to exclude root joint
         curr_vel = self.get_joint_velocities()
 
         err_vel = self.calc_vel_errs(curr_mocap_vel, curr_vel)
 
-        target_root = self.mocap.data[self.idx_mocap, 1: 1+7] # translation & rotation
+        target_root = self.mocap.data[self.idx_mocap, 1+2: 1+7] # translation & rotation
         curr_root = self.get_root_pos()
 
         err_root = self.calc_root_errs(curr_root, target_root)
-        print('Error root: ', err_root)
+        # print('Error root: ', err_root)
 
         ## TODO
         # err_end_eff =  0.0
@@ -155,9 +156,9 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         # err_com = 0.0
         # reward_com      = math.exp(-self.scale_err * self.scale_com * err_com)
 
-        reward_pose     = math.exp(-self.scale_err * self.scale_pose * err_configs)
-        reward_vel      = math.exp(-self.scale_err * self.scale_vel * err_vel)
-        reward_root     = math.exp(-self.scale_err * self.scale_root * err_root)
+        reward_pose = math.exp(-self.scale_err * self.scale_pose * err_configs)
+        reward_vel  = math.exp(-self.scale_err * self.scale_vel * err_vel)
+        reward_root = math.exp(-self.scale_err * self.scale_root * err_root)
 
         # reward = self.weight_pose * reward_pose + self.weight_vel * reward_vel + \
         #      self.weight_end_eff * reward_end_eff + self.weight_root * reward_root + \
@@ -179,7 +180,7 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
         reward = reward_obs - 0.1 * reward_acs
 
-        info = dict()
+        info = dict(reward_obs=reward_obs, reward_acs=reward_acs)
         done = self.is_done()
 
         return observation, reward, done, info
@@ -198,14 +199,8 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
     def reset_model(self):
         self.reference_state_init()
-        qpos = self.mocap.data[self.idx_init, 1:]
-        if self.idx_init == self.mocap_data_len - 1: # init to last mocap frame
-            root_pos_err = np.array(self.mocap.data[self.idx_init, 1:4]) - np.array(self.mocap.data[self.idx_init-1, 1:4])
-            qpos_err = self.interface.calc_config_err_vec_with_root(self.mocap.data[self.idx_init-1, 4:], self.mocap.data[self.idx_init, 4:])
-        else:
-            root_pos_err = np.array(self.mocap.data[self.idx_init+1, 1:4]) - np.array(self.mocap.data[self.idx_init, 1:4])
-            qpos_err = self.interface.calc_config_err_vec_with_root(self.mocap.data[self.idx_init, 4:], self.mocap.data[self.idx_init+1, 4:])
-        qvel = np.concatenate((root_pos_err, qpos_err), axis=None) * 1.0 / self.mocap_dt
+        qpos = self.mocap.data_config[self.idx_init]
+        qvel = self.mocap.data_vel[self.idx_init]
         self.set_state(qpos, qvel)
         observation = self._get_obs()
         return observation
@@ -218,6 +213,7 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
 if __name__ == "__main__":
     env = DPEnv()
+    env.reset_model()
 
     # env.load_mocap("/home/mingfei/Documents/DeepMimic/mujoco/motions/humanoid3d_crawl.txt")
     action_size = env.action_space.shape[0]
