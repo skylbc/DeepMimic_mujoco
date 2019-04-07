@@ -82,7 +82,7 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
     def get_root_pos(self):
         data = self.sim.data
-        return data.qpos[:3]
+        return data.qpos[:7] # translation & rotation
 
     def load_mocap(self, filepath):
         self.mocap.load_mocap(filepath)
@@ -100,8 +100,18 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
     def calc_root_errs(self, curr_root, target_root): # including root joint
         assert len(curr_root) == len(target_root)
-        assert len(curr_root) == 3
-        return np.sum(abs(curr_root - target_root))
+        assert len(curr_root) == 7
+
+        trans_curr = curr_root[:3]
+        trans_target = target_root[:3]
+
+        q_0 = Quaternion(curr_root[3], curr_root[4], curr_root[5], curr_root[6])
+        q_1 = Quaternion(target_root[3], target_root[4], target_root[5], target_root[6])
+
+        q_diff =  q_0.conjugate * q_1
+        tmp_diff = q_diff.angle
+
+        return np.sum(abs(trans_curr - trans_target)) + abs(tmp_diff)
 
     def calc_reward(self):
         assert len(self.mocap.data) != 0
@@ -120,7 +130,7 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.idx_mocap = int(self.idx_curr // self.update_inteval) + self.idx_init
         self.idx_mocap = self.idx_mocap % self.mocap_data_len
 
-        target_config = self.mocap.data_angle[self.idx_mocap][3:] # to exclude root joint
+        target_config = self.mocap.data_config[self.idx_mocap][3:] # to exclude root joint
         self.curr_frame = target_config
         curr_config = self.get_joint_configs()
 
@@ -131,10 +141,11 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
         err_vel = self.calc_vel_errs(curr_mocap_vel, curr_vel)
 
-        target_root = self.mocap.data[self.idx_mocap, 1: 1+3]
+        target_root = self.mocap.data[self.idx_mocap, 1: 1+7] # translation & rotation
         curr_root = self.get_root_pos()
 
         err_root = self.calc_root_errs(curr_root, target_root)
+        print('Error root: ', err_root)
 
         ## TODO
         # err_end_eff =  0.0
@@ -215,10 +226,11 @@ if __name__ == "__main__":
     curr_idx = env.idx_init
     while True:
         curr_idx = curr_idx % env.mocap_data_len
-        target_config = env.mocap.data_angle[curr_idx][:] # to exclude root joint
+        target_config = env.mocap.data_config[curr_idx][:] # to exclude root joint
         env.sim.data.qpos[:] = target_config[:]
         env.sim.forward()
-        print(env.calc_reward())
+        # print(env.calc_reward())
+        env.calc_reward()
         env.render()
         curr_idx +=1
         env.idx_curr += 1

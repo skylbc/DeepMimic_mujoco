@@ -77,7 +77,7 @@ class MocapDM(object):
 
     def convert_raw_data(self):
         self.data_vel = []
-        self.data_angle = []
+        self.data_config = []
 
         for k in range(len(self.all_states)):
             tmp_vel = []
@@ -141,7 +141,7 @@ class MocapDM(object):
                     # print('Origin: ', quat)
                     # print('Converted: ', quaternion_from_euler(euler_tuple[0], euler_tuple[1], euler_tuple[2], axes='rxya'))
             self.data_vel.append(np.array(tmp_vel))
-            self.data_angle.append(np.array(tmp_angle))
+            self.data_config.append(np.array(tmp_angle))
 
     def play(self, mocap_filepath):
         from mujoco_py import load_model_from_xml, MjSim, MjViewer
@@ -164,7 +164,7 @@ class MocapDM(object):
 
         while True:
             for k in range(len(self.data)):
-                tmp_val = self.data_angle[k]
+                tmp_val = self.data_config[k]
                 sim_state = sim.get_state()
                 sim_state.qpos[:] = tmp_val[:]
                 sim_state.qpos[:3] +=  phase_offset[:]
