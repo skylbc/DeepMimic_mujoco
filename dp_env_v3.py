@@ -66,8 +66,8 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         return np.concatenate((position, velocity))
 
     def reference_state_init(self):
-        self.idx_init = 0
-        self.idx_curr = 0
+        self.idx_init = random.randint(0, self.mocap_data_len-1)
+        self.idx_curr = self.idx_init
 
     def early_termination(self):
         pass
@@ -123,8 +123,10 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         return observation, reward, done, info
 
     def is_done(self):
-        qpos = self.sim.data.qpos
-        done = bool((qpos[2] < 0.7) or (qpos[2] > 2.0))
+        mass = np.expand_dims(self.model.body_mass, 1)
+        xpos = self.sim.data.xipos
+        z_com = (np.sum(mass * xpos, 0) / np.sum(mass))[2]
+        done = bool((z_com < 0.7) or (z_com > 2.0))
         return done
 
     def goto(self, pos):
