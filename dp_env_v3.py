@@ -102,14 +102,16 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         return reward_config
 
     def step(self, action):
+        step_times = int(self.mocap_dt // self.model.opt.timestep)
         pos_before = mass_center(self.model, self.sim)
-        self.do_simulation(action, self.frame_skip)
+        self.do_simulation(action, step_times)
         pos_after = mass_center(self.model, self.sim)
 
         data = self.sim.data
 
         observation = self._get_obs()
 
+        '''
         reward_alive = 1.0
         reward_obs = self.calc_config_reward()
         reward_acs = np.square(data.ctrl).sum()
@@ -118,6 +120,9 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         reward = reward_obs - 0.1 * reward_acs + reward_forward + reward_alive
 
         info = dict(reward_obs=reward_obs, reward_acs=reward_acs, reward_forward=reward_forward)
+        '''
+        reward = self.calc_config_reward()
+        info = dict()
         done = self.is_done()
 
         return observation, reward, done, info
@@ -153,19 +158,23 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 if __name__ == "__main__":
     env = DPEnv()
     env.reset_model()
+    import cv2
+    cap = cv2.VideoCapture(0)
+    fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+    out_vid = cv2.VideoWriter('render.avi', -1, 20.0, (640, 480))
 
     # env.load_mocap("/home/mingfei/Documents/DeepMimic/mujoco/motions/humanoid3d_crawl.txt")
     action_size = env.action_space.shape[0]
     ac = np.zeros(action_size)
     print(action_size)
-    curr_idx = env.idx_init
-    while True:
-        curr_idx = curr_idx % env.mocap_data_len
-        target_config = env.mocap.data_config[curr_idx][:] # to exclude root joint
+    for idx in range(len(env.mocap.data)):
+        target_config = env.mocap.data_config[idx][:] # to exclude root joint
         env.sim.data.qpos[:] = target_config[:]
         env.sim.forward()
-        print(env.calc_config_reward())
+        # print(env.calc_config_reward())
         # env.calc_config_reward()
-        env.render()
-        curr_idx +=1
-        env.idx_curr += 1
+        frame = env.render(mode='rgb_array')
+        out_vid.write(frame)
+
+    cap.release()
+    out_vid.release()

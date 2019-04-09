@@ -138,8 +138,13 @@ class MocapDM(object):
                     euler_tuple = euler_from_quaternion(quat, axes='rxyz')
                     tmp_angle += list(euler_tuple)
                     ## For testing
-                    # print('Origin: ', quat)
-                    # print('Converted: ', quaternion_from_euler(euler_tuple[0], euler_tuple[1], euler_tuple[2], axes='rxya'))
+                    # quat_after = quaternion_from_euler(euler_tuple[0], euler_tuple[1], euler_tuple[2], axes='rxyz')
+                    # np.set_printoptions(precision=4, suppress=True)
+                    # diff = quat-quat_after
+                    # if diff[3] > 0.5:
+                    #     import pdb
+                    #     pdb.set_trace()
+                    #     print(diff)
             self.data_vel.append(np.array(tmp_vel))
             self.data_config.append(np.array(tmp_angle))
 
