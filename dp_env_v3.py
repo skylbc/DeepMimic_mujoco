@@ -156,14 +156,10 @@ if __name__ == "__main__":
     action_size = env.action_space.shape[0]
     ac = np.zeros(action_size)
     print(action_size)
-    curr_idx = env.idx_init
     while True:
-        curr_idx = curr_idx % env.mocap_data_len
-        target_config = env.mocap.data_config[curr_idx][:] # to exclude root joint
+        target_config = env.mocap.data_config[env.idx_curr] # to exclude root joint
         env.sim.data.qpos[:] = target_config[:]
         env.sim.forward()
         print(env.calc_config_reward())
         # env.calc_config_reward()
         env.render()
-        curr_idx +=1
-        env.idx_curr += 1
