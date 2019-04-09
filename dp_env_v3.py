@@ -167,14 +167,23 @@ if __name__ == "__main__":
     action_size = env.action_space.shape[0]
     ac = np.zeros(action_size)
     print(action_size)
+<<<<<<< HEAD
     for idx in range(len(env.mocap.data)):
         target_config = env.mocap.data_config[idx][:] # to exclude root joint
+=======
+    while True:
+        target_config = env.mocap.data_config[env.idx_curr] # to exclude root joint
+>>>>>>> f66198c936c6e5bb72e65403e8981353856d6100
         env.sim.data.qpos[:] = target_config[:]
         env.sim.forward()
         # print(env.calc_config_reward())
         # env.calc_config_reward()
+<<<<<<< HEAD
         frame = env.render(mode='rgb_array')
         out_vid.write(frame)
 
     cap.release()
     out_vid.release()
+=======
+        env.render()
+>>>>>>> f66198c936c6e5bb72e65403e8981353856d6100
