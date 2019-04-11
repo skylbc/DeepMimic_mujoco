@@ -149,7 +149,8 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def reset_model(self):
         self.reference_state_init()
         qpos = self.mocap.data_config[self.idx_init]
-        qvel = self.mocap.data_vel[self.idx_init]
+        # qvel = self.mocap.data_vel[self.idx_init]
+        qvel = self.init_qvel
         self.set_state(qpos, qvel)
         observation = self._get_obs()
         self.idx_tmp_count = -self.step_len
