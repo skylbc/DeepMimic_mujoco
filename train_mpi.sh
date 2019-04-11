@@ -1,1 +1,1 @@
-mpirun -np 10 python3 trpo.py
+mpirun -np 8 python3 trpo.py

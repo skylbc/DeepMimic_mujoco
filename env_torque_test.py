@@ -24,6 +24,8 @@ if __name__ == "__main__":
         # env.sim.data.qpos[7:] = target_config[:]
         # env.sim.forward()
         # print(env.calc_config_reward())
-        _, rew, _, info = env.step(ac)
+        _, rew, done, info = env.step(ac)
+        if done:
+            env.reset_model()
         # print("Rewards: ", rew)
         env.render()

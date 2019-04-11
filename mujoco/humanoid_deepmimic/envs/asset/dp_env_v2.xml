@@ -18,7 +18,7 @@
     <worldbody>
         <geom condim="3" friction="1 .1 .1" material="MatPlane" name="floor" pos="0 0 0" rgba="0.8 0.9 0.8 1" size="20 20 0.125" type="plane"/>
         <body name="root" pos="0 0 1">
-            <geom name="root" mass="6.0" pos="0 0 0.07" size=".09" type="sphere"/>
+            <geom name="root" mass="3.0" pos="0 0 0.07" size=".09" type="sphere"/>
             <light name="tracking_light" pos="0 0 7" dir="0 0 -1" mode="trackcom"/>
             <camera name="back" pos="0 3 2.4" xyaxes="-1 0 0 0 -1 2" mode="trackcom"/>
             <camera name="side" pos="-3 0 2.4" xyaxes="0 -1 0 1 0 2" mode="trackcom"/>
@@ -26,7 +26,7 @@
             <site name="joint_waist" pos="0 0 0.205" size="0.07" type="sphere"/>
             <site name="joint_front_x" rgba='1 0 0 1' pos="0.08 0 0.205" size="0.01 0.01 0.01" type="box"/>
             <body name="chest" pos="0 0 0.236151">
-                <geom name="chest" mass="14.0" pos="0 0 0.12" size=".11" type="sphere"/>
+                <geom name="chest" mass="4.0" pos="0 0 0.12" size=".11" type="sphere"/>
                 <joint name="chest_x" axis="1 0 0" pos="0 0 0" range="-68.75 68.75" type="hinge"/>
                 <joint name="chest_y" axis="0 1 0" pos="0 0 0" range="-68.75 68.75" type="hinge"/>
                 <joint name="chest_z" axis="0 0 1" pos="0 0 0" range="-68.75 68.75" type="hinge"/>
