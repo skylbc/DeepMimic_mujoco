@@ -52,12 +52,13 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.scale_com = 10.0
         self.scale_err = 1.0
 
-        self.idx_mocap = 0
         self.reference_state_init()
         self.idx_curr = -1
+        self.idx_tmp_count = -1
 
         mujoco_env.MujocoEnv.__init__(self, xml_file_path, 6)
         utils.EzPickle.__init__(self)
+
 
     def _get_obs(self):
         position = self.sim.data.qpos.flat.copy()[7:] # ignore root joint
@@ -67,6 +68,7 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def reference_state_init(self):
         self.idx_init = random.randint(0, self.mocap_data_len-1)
         self.idx_curr = self.idx_init
+        self.idx_tmp_count = 0
 
     def early_termination(self):
         pass
@@ -96,12 +98,16 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         # reward_config = math.exp(-self.scale_err * self.scale_pose * err_configs)
         reward_config = math.exp(-err_configs)
 
-        self.idx_curr += 1
-        self.idx_curr = self.idx_curr % self.mocap_data_len
+        self.idx_tmp_count += 1
+        if self.idx_tmp_count == self.step_len:
+            self.idx_curr += 1
+            self.idx_tmp_count = 0
+            self.idx_curr = self.idx_curr % self.mocap_data_len
 
         return reward_config
 
     def step(self, action):
+        self.step_len = int(self.mocap_dt // self.model.opt.timestep)
         # step_times = int(self.mocap_dt // self.model.opt.timestep)
         step_times = 1
         # pos_before = mass_center(self.model, self.sim)
@@ -146,6 +152,7 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         qvel = self.mocap.data_vel[self.idx_init]
         self.set_state(qpos, qvel)
         observation = self._get_obs()
+        self.idx_tmp_count = -self.step_len
         return observation
 
     def viewer_setup(self):
@@ -171,10 +178,11 @@ if __name__ == "__main__":
     ac = np.zeros(action_size)
     while True:
         target_config = env.mocap.data_config[env.idx_curr][:] # to exclude root joint
-        env.sim.data.qpos[:] = target_config[:]
-        env.sim.forward()
-        print(env.calc_config_reward())
+        # env.sim.data.qpos[:] = target_config[:]
+        # env.sim.forward()
+        # print(env.calc_config_reward())
         # env.calc_config_reward()
+        env.reset_model()
         env.render()
         # frame = env.sim.render(camera_name='side', width=width, height=height)
         # vid_save.addFrame(frame[::-1, :, :])
