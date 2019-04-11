@@ -7,12 +7,12 @@ Mujoco version of [DeepMimic](https://xbpeng.github.io/projects/DeepMimic/index.
 
 # Usage
 Training a policy:
-``` python
-python3 trpo --task train
+``` bash
+python3 trpo.py --task train
 ```
 Running a policy:
-``` python
-python3 trpo --task evaluate --load_model_path XXXX # for evaluation
+``` bash
+python3 trpo.py --task evaluate --load_model_path XXXX # for evaluation
 ```
 
 # Acknowledge
