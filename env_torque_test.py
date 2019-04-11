@@ -9,18 +9,17 @@ if __name__ == "__main__":
     ac = np.ones(action_size)
     
     np.set_printoptions(precision=3)
-    import pdb
-    pdb.set_trace()
 
     while True:
         target_config = env.mocap.data_config[env.idx_curr][7:] # to exclude root joint
         curr_config = env.sim.data.qpos[7:]
         # print("Configs errors: ", np.sum(np.abs(target_config-curr_config)))
-        ac = 0.6 * np.array(target_config - curr_config)
-        print(ac[6:9])
-        if ac[8] > 1.6:
-            import pdb
-            pdb.set_trace()
+        ac = 0.8 * np.array(target_config - curr_config)
+        # print(ac[6:9])
+
+        # if ac[8] > 1.6:
+        #     import pdb
+        #     pdb.set_trace()
 
         # env.sim.data.qpos[7:] = target_config[:]
         # env.sim.forward()

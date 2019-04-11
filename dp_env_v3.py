@@ -60,9 +60,8 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         utils.EzPickle.__init__(self)
 
     def _get_obs(self):
-        position = self.sim.data.qpos.flat.copy()
-        velocity = self.sim.data.qvel.flat.copy()
-        position = position[2:] # ignore x and y
+        position = self.sim.data.qpos.flat.copy()[7:] # ignore root joint
+        velocity = self.sim.data.qvel.flat.copy()[6:] # ignore root joint
         return np.concatenate((position, velocity))
 
     def reference_state_init(self):
@@ -94,7 +93,8 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         curr_config = self.get_joint_configs()
 
         err_configs = self.calc_config_errs(curr_config, target_config)
-        reward_config = math.exp(-self.scale_err * self.scale_pose * err_configs)
+        # reward_config = math.exp(-self.scale_err * self.scale_pose * err_configs)
+        reward_config = math.exp(-err_configs)
 
         self.idx_curr += 1
         self.idx_curr = self.idx_curr % self.mocap_data_len
@@ -102,12 +102,11 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         return reward_config
 
     def step(self, action):
-        step_times = int(self.mocap_dt // self.model.opt.timestep)
-        pos_before = mass_center(self.model, self.sim)
+        # step_times = int(self.mocap_dt // self.model.opt.timestep)
+        step_times = 1
+        # pos_before = mass_center(self.model, self.sim)
         self.do_simulation(action, step_times)
-        pos_after = mass_center(self.model, self.sim)
-
-        data = self.sim.data
+        # pos_after = mass_center(self.model, self.sim)
 
         observation = self._get_obs()
 
@@ -150,40 +149,34 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         return observation
 
     def viewer_setup(self):
-        self.viewer.cam.trackbodyid = 1
-        self.viewer.cam.distance = self.model.stat.extent * 1.0
-        self.viewer.cam.lookat[2] = 2.0
-        self.viewer.cam.elevation = -20
+        pass
+        # self.viewer.cam.trackbodyid = 1
+        # self.viewer.cam.distance = self.model.stat.extent * 1.0
+        # self.viewer.cam.lookat[2] = 2.0
+        # self.viewer.cam.elevation = -20
 
 if __name__ == "__main__":
     env = DPEnv()
     env.reset_model()
+
     import cv2
-    cap = cv2.VideoCapture(0)
-    fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-    out_vid = cv2.VideoWriter('render.avi', -1, 20.0, (640, 480))
+    from VideoSaver import VideoSaver
+    width = 640
+    height = 480
+
+    # vid_save = VideoSaver(width=width, height=height)
 
     # env.load_mocap("/home/mingfei/Documents/DeepMimic/mujoco/motions/humanoid3d_crawl.txt")
     action_size = env.action_space.shape[0]
     ac = np.zeros(action_size)
-    print(action_size)
-<<<<<<< HEAD
-    for idx in range(len(env.mocap.data)):
-        target_config = env.mocap.data_config[idx][:] # to exclude root joint
-=======
     while True:
-        target_config = env.mocap.data_config[env.idx_curr] # to exclude root joint
->>>>>>> f66198c936c6e5bb72e65403e8981353856d6100
+        target_config = env.mocap.data_config[env.idx_curr][:] # to exclude root joint
         env.sim.data.qpos[:] = target_config[:]
         env.sim.forward()
-        # print(env.calc_config_reward())
+        print(env.calc_config_reward())
         # env.calc_config_reward()
-<<<<<<< HEAD
-        frame = env.render(mode='rgb_array')
-        out_vid.write(frame)
-
-    cap.release()
-    out_vid.release()
-=======
         env.render()
->>>>>>> f66198c936c6e5bb72e65403e8981353856d6100
+        # frame = env.sim.render(camera_name='side', width=width, height=height)
+        # vid_save.addFrame(frame[::-1, :, :])
+
+    # vid_save.close()

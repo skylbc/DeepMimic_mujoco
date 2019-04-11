@@ -11,9 +11,7 @@ class VideoSaver():
     gFps = 15
 
     def __init__(self, showType="dump", dumpDir="./render", width=640, height=480, fps=15):
-        if showType not in ["dump", "play"]:
-            print("demoShow.init Failed, Invalid showType:%s" %(showType))
-            return -1
+        assert showType in ["dump", "play"]
 
         self.gShowType = showType
         self.gDumpDir = dumpDir
@@ -33,23 +31,17 @@ class VideoSaver():
 
             print("demoShow.init openning %s " %(video_name))
             self.gDumpFd = cv2.VideoWriter(video_name, fourcc, fps, (width, height))
-            if self.gDumpFd == None:
-                print("demoShow.init Failed, open %s failed" %(video_name))
-                return -1
         print("demoShow.init success")
 
-    def __del__(self):
-        if self.gDumpFd != None:
-            self.gDumpFd.release()
-            self.gDumpFd = None
+    def close(self):
+        assert self.gDumpFd != None
+        self.gDumpFd.release()
 
     def addFrame(self, img):
         if self.gShowType == "dump":
-            if self.gDumpFd == None:
-                print("demoShow.addFrame failed, Please call init success first")
-                return -1
+            assert self.gDumpFd != None
             self.gDumpFd.write(img)
         else:
-            sleepTime = 1000.0/self.gFps
+            sleepTime = 1
             cv2.imshow('image', img)
             cv2.waitKey(sleepTime)

@@ -1,5 +1,6 @@
 log_tmp/
 checkpoint_tmp/
+render/
 
 .vscode/
 *.pyc
