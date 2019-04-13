@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import numpy as np
 
-from mujoco.mocap import MocapDM
+from mujoco.mocap_v2 import MocapDM
 from mujoco.mujoco_interface import MujocoInterface
 
 from gym.envs.mujoco import mujoco_env
@@ -9,7 +9,7 @@ from gym import utils
 
 class HumanoindDPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def __init__(self):
-        file_path = '/home/mingfei/Documents/DeepMimic/mujoco/humanoid_deepmimic/envs/asset/dp_env_v1.xml'
+        file_path = '/home/mingfei/Documents/DeepMimic/mujoco/humanoid_deepmimic/envs/asset/dp_env_v3.xml'
         mujoco_env.MujocoEnv.__init__(self, file_path, 30)
         utils.EzPickle.__init__(self)
 
@@ -81,9 +81,11 @@ if __name__ == "__main__":
     left_ankle_y = 26
     left_ankle_z = 27
 
-    idx = right_shoulder_x
-    torque = np.ones(env.action_space.shape)
-    torque[idx] = -1 * torque[idx]
+    torque = np.zeros(env.action_space.shape)
+    # torque[chest_y] = 1 
+    # torque[left_knee] = -1 
+    # torque[right_shoulder_y] = 1 
+    # torque[left_shoulder_y] = 1 
     while True:
         env.step(torque)
         env.render()

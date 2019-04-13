@@ -7,7 +7,7 @@ class Config(object):
     curr_path = getcwd()
     # motion = 'spinkick'
     motion = 'walk'
-    env_name = "dp_env_v2"
+    env_name = "dp_env_v3"
 
     motion_folder = '/mujoco/motions'
     xml_folder = '/mujoco/humanoid_deepmimic/envs/asset'

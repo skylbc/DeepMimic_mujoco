@@ -66,7 +66,8 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         return np.concatenate((position, velocity))
 
     def reference_state_init(self):
-        self.idx_init = random.randint(0, self.mocap_data_len-1)
+        # self.idx_init = random.randint(0, self.mocap_data_len-1)
+        self.idx_init = 0
         self.idx_curr = self.idx_init
         self.idx_tmp_count = 0
 
@@ -136,7 +137,7 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         mass = np.expand_dims(self.model.body_mass, 1)
         xpos = self.sim.data.xipos
         z_com = (np.sum(mass * xpos, 0) / np.sum(mass))[2]
-        done = bool((z_com < 0.7) or (z_com > 2.0))
+        done = bool((z_com < 0.3) or (z_com > 2.0))
         return done
 
     def goto(self, pos):
@@ -149,8 +150,8 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def reset_model(self):
         self.reference_state_init()
         qpos = self.mocap.data_config[self.idx_init]
-        # qvel = self.mocap.data_vel[self.idx_init]
-        qvel = self.init_qvel
+        qvel = self.mocap.data_vel[self.idx_init]
+        # qvel = self.init_qvel
         self.set_state(qpos, qvel)
         observation = self._get_obs()
         self.idx_tmp_count = -self.step_len
@@ -179,11 +180,11 @@ if __name__ == "__main__":
     ac = np.zeros(action_size)
     while True:
         target_config = env.mocap.data_config[env.idx_curr][:] # to exclude root joint
-        # env.sim.data.qpos[:] = target_config[:]
-        # env.sim.forward()
+        env.sim.data.qpos[:] = target_config[:]
+        env.sim.forward()
         # print(env.calc_config_reward())
-        # env.calc_config_reward()
-        env.reset_model()
+        env.calc_config_reward()
+        # env.reset_model()
         env.render()
         # frame = env.sim.render(camera_name='side', width=width, height=height)
         # vid_save.addFrame(frame[::-1, :, :])
