@@ -137,7 +137,7 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         mass = np.expand_dims(self.model.body_mass, 1)
         xpos = self.sim.data.xipos
         z_com = (np.sum(mass * xpos, 0) / np.sum(mass))[2]
-        done = bool((z_com < 0.3) or (z_com > 2.0))
+        done = bool((z_com < 0.1) or (z_com > 2.0))
         return done
 
     def goto(self, pos):

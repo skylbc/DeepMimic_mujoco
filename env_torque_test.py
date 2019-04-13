@@ -17,9 +17,9 @@ if __name__ == "__main__":
         curr_config_vel = env.sim.data.qvel[6:]
         # print("Configs errors: ", np.sum(np.abs(target_config-curr_config)))
         # ac = 0.2 * np.array(target_config - curr_config)
-        ac = 1.0 * np.array(target_config - curr_config) # + 0.02 * np.array(target_config_vel - curr_config_vel)
-        ac[-2] += 0.25
-        ac[-9] += 0.25
+        ac = 0.6 * np.array(target_config - curr_config) # + 0.02 * np.array(target_config_vel - curr_config_vel)
+        # ac[-2] += 0.3
+        # ac[-9] += 0.3
 
         # if ac[-4] > 0:
         #     ac[-4]  = 1

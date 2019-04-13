@@ -45,7 +45,7 @@ class MocapDM(object):
                 offset_idx = 8
                 state = {}
                 state['root_pos'] = align_position(each_frame[curr_idx:curr_idx+3])
-                state['root_pos'][2] += 0.08
+                # state['root_pos'][2] += 0.08
                 state['root_rot'] = align_rotation(each_frame[curr_idx+3:offset_idx])
                 for each_joint in BODY_JOINTS_IN_DP_ORDER:
                     curr_idx = offset_idx
