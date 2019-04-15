@@ -99,16 +99,14 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         # reward_config = math.exp(-self.scale_err * self.scale_pose * err_configs)
         reward_config = math.exp(-err_configs)
 
-        self.idx_tmp_count += 1
-        if self.idx_tmp_count == self.step_len:
-            self.idx_curr += 1
-            self.idx_tmp_count = 0
-            self.idx_curr = self.idx_curr % self.mocap_data_len
+        self.idx_curr += 1
+        self.idx_curr = self.idx_curr % self.mocap_data_len
 
         return reward_config
 
     def step(self, action):
-        self.step_len = int(self.mocap_dt // self.model.opt.timestep)
+        # self.step_len = int(self.mocap_dt // self.model.opt.timestep)
+        self.step_len = 1
         # step_times = int(self.mocap_dt // self.model.opt.timestep)
         step_times = 1
         # pos_before = mass_center(self.model, self.sim)
@@ -137,7 +135,7 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         mass = np.expand_dims(self.model.body_mass, 1)
         xpos = self.sim.data.xipos
         z_com = (np.sum(mass * xpos, 0) / np.sum(mass))[2]
-        done = bool((z_com < 0.1) or (z_com > 2.0))
+        done = bool((z_com < 0.7) or (z_com > 2.0))
         return done
 
     def goto(self, pos):
@@ -182,8 +180,8 @@ if __name__ == "__main__":
         target_config = env.mocap.data_config[env.idx_curr][:] # to exclude root joint
         env.sim.data.qpos[:] = target_config[:]
         env.sim.forward()
-        # print(env.calc_config_reward())
-        env.calc_config_reward()
+        print(env.calc_config_reward())
+        # env.calc_config_reward()
         # env.reset_model()
         env.render()
         # frame = env.sim.render(camera_name='side', width=width, height=height)

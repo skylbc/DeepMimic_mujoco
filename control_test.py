@@ -82,8 +82,9 @@ if __name__ == "__main__":
     left_ankle_z = 27
 
     torque = np.zeros(env.action_space.shape)
-    # torque[right_hip_z] = -1 
-    torque[right_ankle_y] = -1
+    torque[chest_y] = -1 
+    torque[neck_y] = 1 
+    # torque[right_hip_y] = -1
     # torque[left_elbow] = 0.3 
     # torque[left_knee] = -1 
     # torque[right_shoulder_y] = 1 
