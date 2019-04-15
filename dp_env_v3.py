@@ -66,8 +66,8 @@ class DPEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         return np.concatenate((position, velocity))
 
     def reference_state_init(self):
-        # self.idx_init = random.randint(0, self.mocap_data_len-1)
-        self.idx_init = 0
+        self.idx_init = random.randint(0, self.mocap_data_len-1)
+        # self.idx_init = 0
         self.idx_curr = self.idx_init
         self.idx_tmp_count = 0
 
